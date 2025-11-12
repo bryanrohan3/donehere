@@ -23,26 +23,36 @@ function FitBounds({ farts }) {
   return null;
 }
 
-// --- Helpers for hex encoding ---
+// --- Helpers for hex decoding ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
   const lngInt = parseInt(hexLng, 16);
-  const lat = latInt / SCALE - 90;
-  const lng = lngInt / SCALE - 180;
+  const lat = latInt / SCALE;
+  const lng = lngInt / SCALE;
   return { lat, lng };
 }
 
 export default function MapPage() {
   const [farts, setFarts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
+  // ✅ Detect admin via ?admin=secret param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const adminKey = params.get("admin");
+    if (adminKey && adminKey === import.meta.env.VITE_ADMIN_KEY) {
+      setIsAdmin(true);
+    }
+  }, []);
+
+  // ✅ Fetch all farts
   useEffect(() => {
     let mounted = true;
     axios
       .get("/api/farts", {
         headers: {
-          // ✅ Must include API key to access protected API route
           "x-api-key": import.meta.env.VITE_API_SECRET,
         },
       })
@@ -50,7 +60,7 @@ export default function MapPage() {
         if (!mounted) return;
         let data = r.data || [];
 
-        // Decode hex coordinates if needed
+        // Decode hex if present
         data = data.map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -59,7 +69,6 @@ export default function MapPage() {
           return f;
         });
 
-        console.log("Fetched farts:", data); // 🧩 Debugging output
         setFarts(data);
         setLoading(false);
       })
@@ -72,6 +81,30 @@ export default function MapPage() {
     };
   }, []);
 
+  // ✅ Secure admin reset
+  async function resetFarts() {
+    if (!confirm("Are you sure you want to delete all farts? 💨")) return;
+    try {
+      const res = await fetch("/api/farts", {
+        method: "DELETE",
+        headers: {
+          "x-api-key": import.meta.env.VITE_API_SECRET,
+          "x-admin-key": import.meta.env.VITE_ADMIN_KEY,
+        },
+      });
+      if (res.ok) {
+        alert("🧹 All farts cleared!");
+        window.location.reload();
+      } else {
+        alert("❌ Failed to clear farts (check console).");
+        console.error(await res.text());
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error while clearing farts.");
+    }
+  }
+
   const center = farts.length ? [farts[0].lat, farts[0].lng] : [20, 0];
 
   return (
@@ -80,45 +113,58 @@ export default function MapPage() {
         {loading ? (
           <div className="p-10 text-center">Loading map entries…</div>
         ) : (
-          <MapContainer
-            center={center}
-            zoom={farts.length ? 13 : 2}
-            style={{ height: "70vh", width: "100%" }}
-            scrollWheelZoom
-          >
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {farts.map((f, i) => (
-              <CircleMarker
-                key={i}
-                center={[f.lat, f.lng]}
-                radius={6}
-                pathOptions={{
-                  color: "#facc15",
-                  fillColor: "#facc15",
-                  fillOpacity: 0.6,
-                }}
-              >
-                <Popup>
-                  <div className="text-sm">
-                    <div>
-                      <strong>Recorded:</strong>{" "}
-                      {new Date(f.ts).toLocaleString()}
+          <>
+            <MapContainer
+              center={center}
+              zoom={farts.length ? 13 : 2}
+              style={{ height: "70vh", width: "100%" }}
+              scrollWheelZoom
+            >
+              <TileLayer
+                attribution="&copy; OpenStreetMap contributors"
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {farts.map((f, i) => (
+                <CircleMarker
+                  key={i}
+                  center={[f.lat, f.lng]}
+                  radius={6}
+                  pathOptions={{
+                    color: "#facc15",
+                    fillColor: "#facc15",
+                    fillOpacity: 0.6,
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <div>
+                        <strong>Recorded:</strong>{" "}
+                        {new Date(f.ts).toLocaleString()}
+                      </div>
+                      <div>
+                        <strong>Accuracy (m):</strong> {f.accuracy ?? "n/a"}
+                      </div>
+                      <div>
+                        <strong>Source:</strong> {f.source ?? "unknown"}
+                      </div>
                     </div>
-                    <div>
-                      <strong>Accuracy (m):</strong> {f.accuracy ?? "n/a"}
-                    </div>
-                    <div>
-                      <strong>Source:</strong> {f.source ?? "unknown"}
-                    </div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
-            <FitBounds farts={farts} />
-          </MapContainer>
+                  </Popup>
+                </CircleMarker>
+              ))}
+              <FitBounds farts={farts} />
+            </MapContainer>
+
+            {isAdmin && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={resetFarts}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full"
+                >
+                  🧹 Clear All Farts (Admin)
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

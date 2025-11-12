@@ -1,15 +1,14 @@
-// /frontend/api/farts.js
 import fs from "fs";
 import path from "path";
 
 const tempPath = path.join("/tmp", "farts.json");
 const API_SECRET = process.env.API_SECRET;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
-// --- Helpers ---
-const SCALE = 1e5; // precision (5 decimal places ≈ 1m)
+const SCALE = 1e5;
 function coordToHex(lat, lng) {
-  const latInt = Math.round((lat + 90) * SCALE);
-  const lngInt = Math.round((lng + 180) * SCALE);
+  const latInt = Math.round(lat * SCALE);
+  const lngInt = Math.round(lng * SCALE);
   return {
     hexLat: latInt.toString(16),
     hexLng: lngInt.toString(16),
@@ -19,12 +18,12 @@ function coordToHex(lat, lng) {
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
   const lngInt = parseInt(hexLng, 16);
-  const lat = latInt / SCALE - 90;
-  const lng = lngInt / SCALE - 180;
-  return { lat, lng };
+  return {
+    lat: latInt / SCALE,
+    lng: lngInt / SCALE,
+  };
 }
 
-// Parse body safely in both local + Vercel serverless
 async function parseBody(req) {
   if (req.body) {
     if (typeof req.body === "string") return JSON.parse(req.body);
@@ -48,32 +47,34 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET") {
-      // Read and decode
       const raw = JSON.parse(fs.readFileSync(tempPath, "utf8"));
-      const decoded = raw.map((item) => {
-        if (item.hexLat && item.hexLng) {
-          const { lat, lng } = hexToCoord(item.hexLat, item.hexLng);
-          // Optionally round to 3 decimals (~100m privacy)
-          return {
-            lat: Math.round(lat * 1000) / 1000,
-            lng: Math.round(lng * 1000) / 1000,
-            accuracy: item.accuracy ?? null,
-            source: item.source ?? "unknown",
-            ts: item.ts ?? null,
-          };
-        }
-        return item; // fallback for any old format
-      });
+      const decoded = raw
+        .map((item) => {
+          if (item.hexLat && item.hexLng) {
+            const { lat, lng } = hexToCoord(item.hexLat, item.hexLng);
+            if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+            return {
+              lat: Math.round(lat * 10000) / 10000,
+              lng: Math.round(lng * 10000) / 10000,
+              accuracy: item.accuracy ?? null,
+              source: item.source ?? "unknown",
+              ts: item.ts ?? null,
+            };
+          }
+          return item;
+        })
+        .filter(Boolean);
 
       return res.status(200).json(decoded);
-    } else if (req.method === "POST") {
+    }
+
+    if (req.method === "POST") {
       const newFart = await parseBody(req);
       if (typeof newFart.lat !== "number" || typeof newFart.lng !== "number") {
         return res.status(400).json({ error: "Invalid lat/lng" });
       }
 
       const { hexLat, hexLng } = coordToHex(newFart.lat, newFart.lng);
-
       const saved = {
         hexLat,
         hexLng,
@@ -87,9 +88,21 @@ export default async function handler(req, res) {
       fs.writeFileSync(tempPath, JSON.stringify(existing, null, 2));
 
       return res.status(200).json({ ok: true });
-    } else {
-      res.status(405).json({ error: "Method not allowed" });
     }
+
+    // ✅ Admin-only DELETE
+    if (req.method === "DELETE") {
+      const adminHeader = req.headers["x-admin-key"];
+      if (!adminHeader || adminHeader !== ADMIN_KEY) {
+        return res.status(403).json({ error: "Admin key required" });
+      }
+
+      fs.writeFileSync(tempPath, "[]", "utf8");
+      console.log("🧹 All farts cleared by admin");
+      return res.status(200).json({ ok: true, message: "All farts cleared" });
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
     console.error("💩 API error:", err);
     res.status(500).json({ error: "Failed to process fart" });
