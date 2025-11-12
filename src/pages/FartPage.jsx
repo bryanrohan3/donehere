@@ -6,16 +6,19 @@ export default function FartPage() {
   const [sending, setSending] = useState(false);
   const [puff, setPuff] = useState(false);
 
-  async function sendFart(lat, lng, accuracy) {
+  // Send fart to the backend
+  async function sendFart(lat, lng, accuracy, source = "gps") {
     const payload = {
       lat,
       lng,
       accuracy,
+      source, // 'gps' or 'ip'
       ts: new Date().toISOString(),
     };
     await axios.post("/api/farts", payload);
   }
 
+  // Main report function
   async function reportFart() {
     setStatus("");
     if (!navigator.geolocation) {
@@ -26,14 +29,37 @@ export default function FartPage() {
     setSending(true);
     setPuff(true);
 
-    // First attempt
+    // Define fallback using IP-based geolocation
+    const fallbackLocation = async () => {
+      try {
+        setStatus("🌍 Using approximate IP location...");
+        const res = await fetch("https://ipapi.co/json/");
+        const data = await res.json();
+
+        if (data && data.latitude && data.longitude) {
+          await sendFart(data.latitude, data.longitude, 10000, "ip");
+          setStatus("💨 Fart added using IP-based location!");
+        } else {
+          throw new Error("Invalid IP geolocation response");
+        }
+      } catch (err) {
+        console.error("Fallback failed:", err);
+        setStatus("⚠️ Couldn’t determine location even via fallback.");
+      } finally {
+        setSending(false);
+        setTimeout(() => setPuff(false), 500);
+      }
+    };
+
+    // Try GPS first
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
           await sendFart(
             position.coords.latitude,
             position.coords.longitude,
-            position.coords.accuracy
+            position.coords.accuracy,
+            "gps"
           );
           if (navigator.vibrate) navigator.vibrate(80);
           setStatus("💨 Your fart has been immortalized on the map!");
@@ -45,54 +71,23 @@ export default function FartPage() {
           setTimeout(() => setPuff(false), 500);
         }
       },
-      (err) => {
-        console.warn("First geolocation attempt failed:", err);
-
-        if (err.code === 2) {
-          // Retry once with relaxed accuracy
-          setStatus("📍 Retrying with relaxed GPS settings...");
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              try {
-                await sendFart(
-                  position.coords.latitude,
-                  position.coords.longitude,
-                  position.coords.accuracy
-                );
-                setStatus("✅ Got your location on retry! 💨");
-              } catch (e) {
-                console.error(e);
-                setStatus("⚠️ Failed to record fart — try again.");
-              } finally {
-                setSending(false);
-                setTimeout(() => setPuff(false), 500);
-              }
-            },
-            (finalErr) => {
-              console.error("Retry failed:", finalErr);
-              setStatus(
-                "📍 Still unavailable — try again outdoors or with GPS on."
-              );
-              setSending(false);
-              setTimeout(() => setPuff(false), 500);
-            },
-            { enableHighAccuracy: false, timeout: 20000 }
-          );
-        } else if (err.code === 1) {
+      async (err) => {
+        console.warn("Geolocation failed:", err);
+        if (err.code === 1) {
           setStatus(
             "🚫 Location permission denied. Please allow access and retry."
           );
-          setSending(false);
-          setTimeout(() => setPuff(false), 500);
+        } else if (err.code === 2) {
+          // GPS unavailable, use fallback
+          await fallbackLocation();
+          return;
         } else if (err.code === 3) {
-          setStatus("⏳ Timed out while fetching location. Please try again.");
-          setSending(false);
-          setTimeout(() => setPuff(false), 500);
+          setStatus("⏳ Timed out — please try again.");
         } else {
-          setStatus("⚠️ Unknown location error occurred.");
-          setSending(false);
-          setTimeout(() => setPuff(false), 500);
+          setStatus("⚠️ Unknown location error.");
         }
+        setSending(false);
+        setTimeout(() => setPuff(false), 500);
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
