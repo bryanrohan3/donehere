@@ -23,7 +23,7 @@ function FitBounds({ farts }) {
   return null;
 }
 
-// Helper to decode hex if needed
+// --- Helpers for hex encoding ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
@@ -40,12 +40,17 @@ export default function MapPage() {
   useEffect(() => {
     let mounted = true;
     axios
-      .get("/api/farts")
+      .get("/api/farts", {
+        headers: {
+          // ✅ Must include API key to access protected API route
+          "x-api-key": import.meta.env.VITE_API_SECRET,
+        },
+      })
       .then((r) => {
         if (!mounted) return;
         let data = r.data || [];
 
-        // Decode if data is hex
+        // Decode hex coordinates if needed
         data = data.map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -54,11 +59,12 @@ export default function MapPage() {
           return f;
         });
 
+        console.log("Fetched farts:", data); // 🧩 Debugging output
         setFarts(data);
         setLoading(false);
       })
       .catch((e) => {
-        console.error(e);
+        console.error("Failed to fetch farts:", e);
         setLoading(false);
       });
     return () => {
@@ -103,6 +109,9 @@ export default function MapPage() {
                     </div>
                     <div>
                       <strong>Accuracy (m):</strong> {f.accuracy ?? "n/a"}
+                    </div>
+                    <div>
+                      <strong>Source:</strong> {f.source ?? "unknown"}
                     </div>
                   </div>
                 </Popup>
