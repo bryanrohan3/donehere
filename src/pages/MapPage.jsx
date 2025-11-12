@@ -23,6 +23,16 @@ function FitBounds({ farts }) {
   return null;
 }
 
+// Helper to decode hex if needed
+const SCALE = 1e5;
+function hexToCoord(hexLat, hexLng) {
+  const latInt = parseInt(hexLat, 16);
+  const lngInt = parseInt(hexLng, 16);
+  const lat = latInt / SCALE - 90;
+  const lng = lngInt / SCALE - 180;
+  return { lat, lng };
+}
+
 export default function MapPage() {
   const [farts, setFarts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,10 +42,20 @@ export default function MapPage() {
     axios
       .get("/api/farts")
       .then((r) => {
-        if (mounted) {
-          setFarts(r.data || []);
-          setLoading(false);
-        }
+        if (!mounted) return;
+        let data = r.data || [];
+
+        // Decode if data is hex
+        data = data.map((f) => {
+          if (f.hexLat && f.hexLng) {
+            const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
+            return { ...f, lat, lng };
+          }
+          return f;
+        });
+
+        setFarts(data);
+        setLoading(false);
       })
       .catch((e) => {
         console.error(e);
