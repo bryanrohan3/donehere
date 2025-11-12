@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+  background-color: theme("colors.neutral.50"); /* ✅ works in Tailwind 4 */
+}
