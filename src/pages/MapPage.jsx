@@ -36,7 +36,6 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // ✅ Detect admin via URL param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const adminKey = params.get("admin");
@@ -45,7 +44,6 @@ export default function MapPage() {
     }
   }, []);
 
-  // ✅ Fetch farts
   useEffect(() => {
     let mounted = true;
     axios
@@ -55,7 +53,6 @@ export default function MapPage() {
       .then((r) => {
         if (!mounted) return;
         let data = r.data || [];
-
         data = data.map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -63,7 +60,6 @@ export default function MapPage() {
           }
           return f;
         });
-
         setFarts(data);
         setLoading(false);
       })
@@ -76,7 +72,6 @@ export default function MapPage() {
     };
   }, []);
 
-  // ✅ Admin: clear all farts
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -110,6 +105,14 @@ export default function MapPage() {
           <div className="p-10 text-center">Loading map entries…</div>
         ) : (
           <>
+            {/* 🧮 Fart counter header */}
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-xl font-semibold">💨 Global Fart Map</h2>
+              <span className="text-gray-600">
+                Total farts: <strong>{farts.length}</strong>
+              </span>
+            </div>
+
             <MapContainer
               center={center}
               zoom={farts.length ? 13 : 2}
