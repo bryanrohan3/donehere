@@ -15,7 +15,11 @@ export default function FartPage() {
       source, // 'gps' or 'ip'
       ts: new Date().toISOString(),
     };
-    await axios.post("/api/farts", payload);
+    await axios.post("/api/farts", payload, {
+      headers: {
+        "x-api-key": import.meta.env.VITE_API_SECRET,
+      },
+    });
   }
 
   // Main report function
