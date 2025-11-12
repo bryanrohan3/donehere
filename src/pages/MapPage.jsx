@@ -12,18 +12,16 @@ import L from "leaflet";
 
 function FitBounds({ farts }) {
   const map = useMap();
-
   useEffect(() => {
     if (farts.length) {
       const bounds = L.latLngBounds(farts.map((f) => [f.lat, f.lng]));
       map.fitBounds(bounds, { padding: [50, 50] });
     }
   }, [farts, map]);
-
   return null;
 }
 
-// --- Helpers for hex decoding ---
+// --- Hex decoding helper ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
@@ -38,7 +36,7 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // ✅ Detect admin via ?admin=secret param
+  // ✅ Detect admin via URL param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const adminKey = params.get("admin");
@@ -47,20 +45,17 @@ export default function MapPage() {
     }
   }, []);
 
-  // ✅ Fetch all farts
+  // ✅ Fetch farts
   useEffect(() => {
     let mounted = true;
     axios
       .get("/api/farts", {
-        headers: {
-          "x-api-key": import.meta.env.VITE_API_SECRET,
-        },
+        headers: { "x-api-key": import.meta.env.VITE_API_SECRET },
       })
       .then((r) => {
         if (!mounted) return;
         let data = r.data || [];
 
-        // Decode hex if present
         data = data.map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -81,7 +76,7 @@ export default function MapPage() {
     };
   }, []);
 
-  // ✅ Secure admin reset
+  // ✅ Admin: clear all farts
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -94,13 +89,14 @@ export default function MapPage() {
       });
       if (res.ok) {
         alert("🧹 All farts cleared!");
-        window.location.reload();
+        setFarts([]);
       } else {
-        alert("❌ Failed to clear farts (check console).");
-        console.error(await res.text());
+        const err = await res.text();
+        console.error(err);
+        alert("❌ Failed to clear farts.");
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       alert("Error while clearing farts.");
     }
   }
@@ -158,7 +154,7 @@ export default function MapPage() {
               <div className="mt-4 text-center">
                 <button
                   onClick={resetFarts}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full"
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full transition"
                 >
                   🧹 Clear All Farts (Admin)
                 </button>

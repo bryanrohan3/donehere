@@ -6,6 +6,8 @@ const API_SECRET = process.env.API_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
 
 const SCALE = 1e5;
+
+// --- Helpers for encoding/decoding ---
 function coordToHex(lat, lng) {
   const latInt = Math.round(lat * SCALE);
   const lngInt = Math.round(lng * SCALE);
@@ -46,6 +48,7 @@ export default async function handler(req, res) {
       fs.writeFileSync(tempPath, "[]", "utf8");
     }
 
+    // ✅ GET — fetch farts
     if (req.method === "GET") {
       const raw = JSON.parse(fs.readFileSync(tempPath, "utf8"));
       const decoded = raw
@@ -68,6 +71,7 @@ export default async function handler(req, res) {
       return res.status(200).json(decoded);
     }
 
+    // ✅ POST — save fart
     if (req.method === "POST") {
       const newFart = await parseBody(req);
       if (typeof newFart.lat !== "number" || typeof newFart.lng !== "number") {
@@ -90,7 +94,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // ✅ Admin-only DELETE
+    // ✅ DELETE — admin-only clear all farts
     if (req.method === "DELETE") {
       const adminHeader = req.headers["x-admin-key"];
       if (!adminHeader || adminHeader !== ADMIN_KEY) {
@@ -102,6 +106,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, message: "All farts cleared" });
     }
 
+    // Default
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
     console.error("💩 API error:", err);
