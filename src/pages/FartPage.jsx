@@ -1,18 +1,62 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 export default function FartPage() {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [puff, setPuff] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  // Send fart to the backend
+  const COOLDOWN_MINUTES = 5;
+
+  // 🔢 Haversine distance in meters
+  function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(Δφ / 2) ** 2 +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // 🕓 Check cooldown validity
+  function canFartHere(lat, lng) {
+    const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
+    if (!last.time || !last.lat || !last.lng) return true;
+
+    const elapsed = (Date.now() - last.time) / 1000 / 60;
+    const distance = getDistanceFromLatLonInM(lat, lng, last.lat, last.lng);
+
+    if (elapsed < COOLDOWN_MINUTES && distance < 100) {
+      const minsLeft = (COOLDOWN_MINUTES - elapsed).toFixed(1);
+      setStatus(`😤 Too soon! Wait ${minsLeft} min before farting nearby.`);
+      return false;
+    }
+    return true;
+  }
+
+  // 🔄 Start countdown display
+  useEffect(() => {
+    const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
+    if (last.time) {
+      const interval = setInterval(() => {
+        const elapsed = (Date.now() - last.time) / 1000 / 60;
+        const left = Math.max(0, COOLDOWN_MINUTES - elapsed);
+        setCooldown(left > 0 ? Math.ceil(left * 60) : 0); // seconds
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
   async function sendFart(lat, lng, accuracy, source = "gps") {
     const payload = {
       lat,
       lng,
       accuracy,
-      source, // 'gps' or 'ip'
+      source,
       ts: new Date().toISOString(),
     };
     await axios.post("/api/farts", payload, {
@@ -22,9 +66,9 @@ export default function FartPage() {
     });
   }
 
-  // Main report function
   async function reportFart() {
     setStatus("");
+
     if (!navigator.geolocation) {
       setStatus("❌ Geolocation not supported by your device.");
       return;
@@ -33,7 +77,6 @@ export default function FartPage() {
     setSending(true);
     setPuff(true);
 
-    // Define fallback using IP-based geolocation
     const fallbackLocation = async () => {
       try {
         setStatus("🌍 Using approximate IP location...");
@@ -41,11 +84,22 @@ export default function FartPage() {
         const data = await res.json();
 
         if (data && data.latitude && data.longitude) {
+          if (!canFartHere(data.latitude, data.longitude)) {
+            setSending(false);
+            setPuff(false);
+            return;
+          }
           await sendFart(data.latitude, data.longitude, 10000, "ip");
+          localStorage.setItem(
+            "lastFart",
+            JSON.stringify({
+              lat: data.latitude,
+              lng: data.longitude,
+              time: Date.now(),
+            })
+          );
           setStatus("💨 Fart added using IP-based location!");
-        } else {
-          throw new Error("Invalid IP geolocation response");
-        }
+        } else throw new Error("Invalid IP geolocation response");
       } catch (err) {
         console.error("Fallback failed:", err);
         setStatus("⚠️ Couldn’t determine location even via fallback.");
@@ -55,15 +109,20 @@ export default function FartPage() {
       }
     };
 
-    // Try GPS first
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        if (!canFartHere(latitude, longitude)) {
+          setSending(false);
+          setPuff(false);
+          return;
+        }
+
         try {
-          await sendFart(
-            position.coords.latitude,
-            position.coords.longitude,
-            position.coords.accuracy,
-            "gps"
+          await sendFart(latitude, longitude, accuracy, "gps");
+          localStorage.setItem(
+            "lastFart",
+            JSON.stringify({ lat: latitude, lng: longitude, time: Date.now() })
           );
           if (navigator.vibrate) navigator.vibrate(80);
           setStatus("💨 Your fart has been immortalized on the map!");
@@ -77,25 +136,18 @@ export default function FartPage() {
       },
       async (err) => {
         console.warn("Geolocation failed:", err);
-        if (err.code === 1) {
-          setStatus(
-            "🚫 Location permission denied. Please allow access and retry."
-          );
-        } else if (err.code === 2) {
-          // GPS unavailable, use fallback
-          await fallbackLocation();
-          return;
-        } else if (err.code === 3) {
-          setStatus("⏳ Timed out — please try again.");
-        } else {
-          setStatus("⚠️ Unknown location error.");
-        }
+        if (err.code === 2) await fallbackLocation();
+        else if (err.code === 1) setStatus("🚫 Location permission denied.");
+        else setStatus("⚠️ Location error — please retry.");
         setSending(false);
         setTimeout(() => setPuff(false), 500);
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
   }
+
+  const seconds = cooldown % 60;
+  const minutes = Math.floor(cooldown / 60);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-amber-100 via-yellow-50 to-green-100 px-6 relative overflow-hidden">
@@ -111,16 +163,22 @@ export default function FartPage() {
       {/* Main fart button */}
       <button
         onClick={reportFart}
-        disabled={sending}
+        disabled={sending || cooldown > 0}
         className={`relative flex items-center justify-center text-[5rem] md:text-[6rem] rounded-full bg-gradient-to-b from-amber-300 to-amber-200 shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-95 transition-all duration-200 ${
-          sending ? "opacity-70" : ""
+          sending || cooldown > 0 ? "opacity-70 cursor-not-allowed" : ""
         }`}
         style={{
           width: "180px",
           height: "180px",
         }}
       >
-        💩
+        {cooldown > 0 ? (
+          <span className="text-2xl text-neutral-700">
+            ⏳ {minutes}:{seconds.toString().padStart(2, "0")}
+          </span>
+        ) : (
+          "💩"
+        )}
         {puff && (
           <span className="absolute -top-10 text-4xl animate-puff">💨</span>
         )}
