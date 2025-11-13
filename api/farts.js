@@ -1,5 +1,3 @@
-import fetch from "node-fetch";
-
 const API_SECRET = process.env.API_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
