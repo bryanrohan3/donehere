@@ -79,6 +79,13 @@ export default function HamburgerNav() {
             >
               About
             </Link>
+            <Link
+              to="/my-farts"
+              onClick={() => setOpen(false)}
+              className="p-2 rounded hover:bg-neutral-100"
+            >
+              My Farts
+            </Link>
           </div>
         </nav>
       )}
