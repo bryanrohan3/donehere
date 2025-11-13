@@ -24,8 +24,8 @@ export default function HamburgerNav() {
   }, []);
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-20">
-      <div className="max-w-3xl mx-auto flex items-center justify-between p-3">
+    <header className="bg-white shadow-sm sticky top-0 z-30">
+      <div className="max-w-3xl mx-auto flex items-center justify-between p-3 relative">
         {/* Left Section - Logo + Title */}
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-emerald-200 w-10 h-10 flex items-center justify-center font-bold text-lg">
@@ -58,53 +58,79 @@ export default function HamburgerNav() {
             ref={buttonRef}
             aria-label="menu"
             onClick={() => setOpen((prev) => !prev)}
-            className={`p-2 rounded-md bg-amber-100 hover:bg-amber-200 transition-all duration-150 text-lg ${
+            className={`p-2 rounded-md bg-amber-100 hover:bg-amber-200 transition-transform duration-150 text-lg ${
               open ? "rotate-90" : ""
             }`}
           >
             ☰
           </button>
         </div>
+
+        {/* Overlay Menu */}
+        {open && (
+          <>
+            {/* Background overlay (blur + fade) */}
+            <div
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-20"
+              onClick={() => setOpen(false)}
+            ></div>
+
+            {/* Menu content */}
+            <nav
+              ref={menuRef}
+              className="fixed top-16 right-3 w-48 bg-white shadow-lg rounded-2xl border border-neutral-200 z-30 animate-fade-slide"
+            >
+              <div className="flex flex-col p-3 gap-1">
+                <Link
+                  to="/"
+                  onClick={() => setOpen(false)}
+                  className="p-2 rounded-lg hover:bg-amber-50 transition-all"
+                >
+                  💨 Fart
+                </Link>
+                <Link
+                  to="/map"
+                  onClick={() => setOpen(false)}
+                  className="p-2 rounded-lg hover:bg-amber-50 transition-all"
+                >
+                  🗺️ Map
+                </Link>
+                <Link
+                  to="/stats"
+                  onClick={() => setOpen(false)}
+                  className="p-2 rounded-lg hover:bg-amber-50 transition-all"
+                >
+                  📊 Stats
+                </Link>
+                <Link
+                  to="/about"
+                  onClick={() => setOpen(false)}
+                  className="p-2 rounded-lg hover:bg-amber-50 transition-all"
+                >
+                  ℹ️ About
+                </Link>
+              </div>
+            </nav>
+          </>
+        )}
       </div>
 
-      {/* Mobile Menu */}
-      {open && (
-        <nav
-          ref={menuRef}
-          className="border-t bg-white shadow-inner animate-slide-down"
-        >
-          <div className="max-w-3xl mx-auto flex flex-col p-3 gap-2">
-            <Link
-              to="/"
-              onClick={() => setOpen(false)}
-              className="p-2 rounded hover:bg-neutral-100"
-            >
-              Fart
-            </Link>
-            <Link
-              to="/map"
-              onClick={() => setOpen(false)}
-              className="p-2 rounded hover:bg-neutral-100"
-            >
-              Map
-            </Link>
-            <Link
-              to="/stats"
-              onClick={() => setOpen(false)}
-              className="p-2 rounded hover:bg-neutral-100"
-            >
-              Stats
-            </Link>
-            <Link
-              to="/about"
-              onClick={() => setOpen(false)}
-              className="p-2 rounded hover:bg-neutral-100"
-            >
-              About
-            </Link>
-          </div>
-        </nav>
-      )}
+      {/* Animations */}
+      <style jsx>{`
+        @keyframes fadeSlide {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-slide {
+          animation: fadeSlide 0.2s ease-out;
+        }
+      `}</style>
     </header>
   );
 }
