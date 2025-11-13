@@ -108,7 +108,8 @@ export default function StatsPage() {
         <p className="text-neutral-500">Loading farts...</p>
       ) : (
         <>
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6 text-center">
+          {/* Your Stats */}
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6 text-center shadow-sm">
             <p className="text-lg font-semibold text-green-700">
               You are <span className="font-bold">{myUsername}</span>
             </p>
@@ -118,14 +119,15 @@ export default function StatsPage() {
             </p>
           </div>
 
+          {/* Time Range Buttons */}
           <div className="flex justify-center gap-2 mb-6 flex-wrap">
             {Object.keys(rangeLabels).map((key) => (
               <button
                 key={key}
                 onClick={() => filterByRange(key)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
                   timeRange === key
-                    ? "bg-amber-400 border-amber-500 text-white"
+                    ? "bg-amber-400 border-amber-500 text-white shadow"
                     : "bg-white border-neutral-200 text-neutral-600 hover:bg-amber-50"
                 }`}
               >
@@ -134,8 +136,9 @@ export default function StatsPage() {
             ))}
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
-            <h2 className="text-lg font-semibold text-amber-700 mb-2">
+          {/* Leaderboard */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-amber-700 mb-3">
               🏆 Top Farters ({rangeLabels[timeRange]})
             </h2>
             {leaderboard.length === 0 ? (
@@ -160,39 +163,49 @@ export default function StatsPage() {
             )}
           </div>
 
-          <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm mb-4">
-            <h2 className="text-lg font-semibold text-neutral-700 mb-3">
+          {/* Most Recent Farts */}
+          <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-md mb-4">
+            <h2 className="text-lg font-semibold text-neutral-700 mb-4">
               🕒 Most Recent Farts ({rangeLabels[timeRange]})
             </h2>
-            <div className="flex flex-col gap-3">
-              {filtered.slice(0, 10).map((f, i) => (
-                <div
-                  key={i}
-                  className="border border-neutral-200 rounded-xl p-4 shadow-sm flex justify-between bg-white/90"
-                >
-                  <div>
-                    <div className="text-sm text-neutral-700">
-                      {f.deviceId === myDeviceId ? myUsername : f.username}
-                    </div>
-                    <div className="text-xs text-neutral-500">
-                      {f.source === "gps" ? "📍 GPS" : "🌍 IP"} fart — Lat:{" "}
-                      {f.lat.toFixed(4)}, Lng: {f.lng.toFixed(4)}
-                    </div>
-                    {f.description && (
-                      <div className="text-xs italic text-neutral-600 mt-1">
-                        “{f.description}”
+            <div className="flex flex-col gap-4">
+              {filtered.slice(0, 10).map((f, i) => {
+                const isMine = f.deviceId === myDeviceId;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-xl p-4 border transition-all shadow-sm hover:shadow-md flex flex-col sm:flex-row justify-between gap-2 ${
+                      isMine
+                        ? "bg-gradient-to-r from-green-50 to-green-100 border-green-200"
+                        : "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200"
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-neutral-800">
+                        {isMine ? `${myUsername} (you)` : f.username}
                       </div>
-                    )}
+                      <div className="text-xs text-neutral-600 mt-0.5">
+                        {f.source === "gps" ? "📍 GPS" : "🌍 IP"} fart —{" "}
+                        <span className="font-mono">
+                          Lat: {f.lat.toFixed(4)}, Lng: {f.lng.toFixed(4)}
+                        </span>
+                      </div>
+                      {f.description && (
+                        <div className="text-sm italic text-neutral-700 mt-2 leading-snug">
+                          “{f.description}”
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs text-neutral-500 text-right min-w-[100px]">
+                      {timeAgo(f.ts)}
+                      <br />
+                      <span className="text-[10px] block">
+                        {new Date(f.ts).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-xs text-neutral-500 text-right">
-                    {timeAgo(f.ts)}
-                    <br />
-                    <span className="text-[10px]">
-                      {new Date(f.ts).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>
