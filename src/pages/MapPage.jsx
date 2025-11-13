@@ -10,6 +10,7 @@ import "leaflet/dist/leaflet.css";
 import axios from "axios";
 import L from "leaflet";
 
+// Fit map bounds to all farts
 function FitBounds({ farts }) {
   const map = useMap();
   useEffect(() => {
@@ -21,21 +22,52 @@ function FitBounds({ farts }) {
   return null;
 }
 
-// --- Hex decoding helper ---
+// --- Helper: convert hex to coords ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
   const lngInt = parseInt(hexLng, 16);
-  const lat = latInt / SCALE;
-  const lng = lngInt / SCALE;
-  return { lat, lng };
+  return { lat: latInt / SCALE, lng: lngInt / SCALE };
+}
+
+// --- Helper: find clusters ("hot zones") ---
+function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
+  const clusters = [];
+  const visited = new Set();
+
+  for (let i = 0; i < farts.length; i++) {
+    if (visited.has(i)) continue;
+    const cluster = [farts[i]];
+    visited.add(i);
+
+    for (let j = i + 1; j < farts.length; j++) {
+      if (visited.has(j)) continue;
+      const dx = farts[i].lat - farts[j].lat;
+      const dy = farts[i].lng - farts[j].lng;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < threshold) {
+        cluster.push(farts[j]);
+        visited.add(j);
+      }
+    }
+
+    if (cluster.length >= minClusterSize) {
+      const avgLat = cluster.reduce((s, f) => s + f.lat, 0) / cluster.length;
+      const avgLng = cluster.reduce((s, f) => s + f.lng, 0) / cluster.length;
+      clusters.push({ lat: avgLat, lng: avgLng, count: cluster.length });
+    }
+  }
+
+  return clusters;
 }
 
 export default function MapPage() {
   const [farts, setFarts] = useState([]);
+  const [hotZones, setHotZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Admin detection via query param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const adminKey = params.get("admin");
@@ -44,6 +76,7 @@ export default function MapPage() {
     }
   }, []);
 
+  // Load fart data
   useEffect(() => {
     let mounted = true;
     axios
@@ -53,6 +86,7 @@ export default function MapPage() {
       .then((r) => {
         if (!mounted) return;
         let data = r.data || [];
+        // decode hex coordinates if present
         data = data.map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -61,6 +95,7 @@ export default function MapPage() {
           return f;
         });
         setFarts(data);
+        setHotZones(findHotZones(data));
         setLoading(false);
       })
       .catch((e) => {
@@ -72,6 +107,7 @@ export default function MapPage() {
     };
   }, []);
 
+  // Admin-only reset
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -85,9 +121,8 @@ export default function MapPage() {
       if (res.ok) {
         alert("🧹 All farts cleared!");
         setFarts([]);
+        setHotZones([]);
       } else {
-        const err = await res.text();
-        console.error(err);
         alert("❌ Failed to clear farts.");
       }
     } catch (err) {
@@ -123,6 +158,8 @@ export default function MapPage() {
                 attribution="&copy; OpenStreetMap contributors"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+
+              {/* 💩 Individual farts */}
               {farts.map((f, i) => (
                 <CircleMarker
                   key={i}
@@ -150,6 +187,32 @@ export default function MapPage() {
                   </Popup>
                 </CircleMarker>
               ))}
+
+              {/* 🔥 Fart Hot Zones */}
+              {hotZones.map((zone, i) => (
+                <CircleMarker
+                  key={`zone-${i}`}
+                  center={[zone.lat, zone.lng]}
+                  radius={20 + zone.count * 2}
+                  pathOptions={{
+                    color: "#dc2626",
+                    fillColor: "#f87171",
+                    fillOpacity: 0.4,
+                    weight: 2,
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm font-semibold text-red-700">
+                      🔥 Fart Hot Zone
+                      <br />
+                      <span className="text-xs text-neutral-600">
+                        {zone.count} farts nearby
+                      </span>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+
               <FitBounds farts={farts} />
             </MapContainer>
 
