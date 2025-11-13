@@ -38,7 +38,9 @@ async function parseBody(req) {
   return JSON.parse(raw || "{}");
 }
 
+// --- GitHub Helpers ---
 async function getFileInfo() {
+  console.log("📂 Fetching file from GitHub:", GITHUB_REPO, GITHUB_FILE_PATH);
   const res = await fetch(
     `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
     {
@@ -48,11 +50,20 @@ async function getFileInfo() {
       },
     }
   );
-  if (!res.ok) throw new Error("Failed to read GitHub farts.json");
-  return await res.json();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`❌ Failed to read GitHub file: ${text}`);
+  return JSON.parse(text);
 }
 
 async function updateFile(content, sha, message) {
+  const payload = {
+    message,
+    content: Buffer.from(JSON.stringify(content, null, 2)).toString("base64"),
+    sha,
+  };
+
+  console.log("🌀 Attempting GitHub update:", message);
+
   const res = await fetch(
     `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
     {
@@ -61,28 +72,31 @@ async function updateFile(content, sha, message) {
         Authorization: `token ${GITHUB_TOKEN}`,
         Accept: "application/vnd.github.v3+json",
       },
-      body: JSON.stringify({
-        message,
-        content: Buffer.from(JSON.stringify(content, null, 2)).toString(
-          "base64"
-        ),
-        sha,
-      }),
+      body: JSON.stringify(payload),
     }
   );
-  if (!res.ok) throw new Error("Failed to update GitHub file");
-  return await res.json();
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(`❌ GitHub update failed: ${text}`);
+  console.log("✅ GitHub updated successfully:", text);
+  return JSON.parse(text);
 }
 
+// --- Main handler ---
 export default async function handler(req, res) {
   const key = req.headers["x-api-key"];
   if (!key || key !== API_SECRET) {
+    console.log("🚫 Invalid or missing API key");
     return res.status(403).json({ error: "Forbidden" });
   }
 
   try {
-    // Load file from GitHub
+    console.log("🚀 Request method:", req.method);
+
     const file = await getFileInfo();
+    const sha = file.sha;
+    console.log("📄 Current GitHub file SHA:", sha);
+
     const existing = JSON.parse(
       Buffer.from(file.content, "base64").toString("utf8") || "[]"
     );
@@ -106,13 +120,17 @@ export default async function handler(req, res) {
         })
         .filter(Boolean);
 
+      console.log("📤 Returning", decoded.length, "farts");
       return res.status(200).json(decoded);
     }
 
     // ✅ POST — save new fart
     if (req.method === "POST") {
       const newFart = await parseBody(req);
+      console.log("💨 New fart received:", newFart);
+
       if (typeof newFart.lat !== "number" || typeof newFart.lng !== "number") {
+        console.log("❌ Invalid coordinates");
         return res.status(400).json({ error: "Invalid lat/lng" });
       }
 
@@ -126,12 +144,15 @@ export default async function handler(req, res) {
       };
 
       const updated = [...existing, saved];
+
+      console.log("📦 Committing fart to GitHub...");
       await updateFile(
         updated,
-        file.sha,
+        sha,
         `💨 New fart at ${new Date().toISOString()}`
       );
 
+      console.log("✅ Fart committed!");
       return res.status(200).json({ ok: true });
     }
 
@@ -139,18 +160,21 @@ export default async function handler(req, res) {
     if (req.method === "DELETE") {
       const adminHeader = req.headers["x-admin-key"];
       if (!adminHeader || adminHeader !== ADMIN_KEY) {
+        console.log("🚫 Invalid admin key");
         return res.status(403).json({ error: "Admin key required" });
       }
 
-      await updateFile([], file.sha, "🧹 Cleared all farts");
-      console.log("🧹 All farts cleared by admin");
+      await updateFile([], sha, "🧹 Cleared all farts");
+      console.log("🧹 All farts cleared");
       return res.status(200).json({ ok: true, message: "All farts cleared" });
     }
 
-    // Default
+    // Default case
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
-    console.error("💩 API error:", err);
-    res.status(500).json({ error: "Failed to process fart" });
+    console.error("💩 API error:", err.message);
+    res
+      .status(500)
+      .json({ error: "Failed to process fart", details: err.message });
   }
 }
