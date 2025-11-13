@@ -34,6 +34,7 @@ export default function ProfilePage() {
         setLoading(false);
       }
     }
+
     fetchFarts();
   }, []);
 
@@ -42,7 +43,6 @@ export default function ProfilePage() {
     const achievementsList = [];
     const uniqueCountries = new Set();
 
-    // fake country from coords (just for concept)
     mine.forEach((f, i) => {
       xpTotal += 10; // per fart
       if (i === 0) xpTotal += 50; // first fart bonus
@@ -68,10 +68,6 @@ export default function ProfilePage() {
     setAchievements(achievementsList);
   }
 
-  function filterByRange(range) {
-    setTimeRange(range);
-  }
-
   function filteredFarts() {
     if (timeRange === "all") return farts;
     const now = Date.now();
@@ -92,20 +88,6 @@ export default function ProfilePage() {
     return `${Math.floor(diff / 86400)}d ago`;
   }
 
-  function formatDate(ts) {
-    const d = new Date(ts);
-    const day = d.getDate();
-    const month = d.toLocaleString("default", { month: "long" });
-    const year = String(d.getFullYear()).slice(-2);
-    const hour = d.getHours() % 12 || 12;
-    const min = String(d.getMinutes()).padStart(2, "0");
-    const ampm = d.getHours() >= 12 ? "PM" : "AM";
-    const suffix = ["th", "st", "nd", "rd"][
-      day % 10 > 3 || Math.floor(day / 10) === 1 ? 0 : day % 10
-    ];
-    return `${day}${suffix} ${month} ${year}' @ ${hour}:${min}${ampm}`;
-  }
-
   const rangeLabels = {
     day: "Today",
     week: "This Week",
@@ -118,23 +100,28 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-amber-700 mb-4">My Profile 💨</h1>
+      <h1 className="text-3xl font-extrabold text-amber-700 mb-6 text-center">
+        💨 My Profile
+      </h1>
 
       {loading ? (
-        <p className="text-neutral-500">Loading profile...</p>
+        <p className="text-center text-neutral-500 animate-pulse">
+          Loading your legendary stats...
+        </p>
       ) : (
         <>
-          {/* XP / Level */}
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-green-700">
-              {myUsername}
-            </h2>
-            <p className="text-sm text-neutral-600 mb-2">
+          {/* Profile Header */}
+          <div className="bg-gradient-to-r from-amber-100 to-green-100 rounded-3xl p-6 mb-8 shadow-md border border-amber-200 text-center">
+            <div className="text-4xl mb-2">👤</div>
+            <h2 className="text-xl font-bold text-neutral-800">{myUsername}</h2>
+            <p className="text-sm text-neutral-600 mt-1">
               Level {level} — {xp} XP
             </p>
-            <div className="w-full bg-neutral-200 rounded-full h-3">
+
+            {/* Progress bar */}
+            <div className="w-full bg-neutral-200 rounded-full h-3 mt-4 overflow-hidden">
               <div
-                className="bg-amber-400 h-3 rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-amber-400 to-emerald-400 h-3 rounded-full transition-all duration-500"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
@@ -142,27 +129,32 @@ export default function ProfilePage() {
 
           {/* Achievements */}
           {achievements.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-amber-700 mb-2">
+            <div className="bg-white border border-amber-200 rounded-2xl p-5 mb-8 shadow-sm">
+              <h3 className="text-lg font-semibold text-amber-700 mb-3 flex items-center gap-1">
                 🏆 Achievements
               </h3>
-              <ul className="list-disc ml-5 text-sm text-neutral-700">
+              <div className="flex flex-wrap gap-2">
                 {achievements.map((a, i) => (
-                  <li key={i}>{a}</li>
+                  <span
+                    key={i}
+                    className="px-3 py-1 text-sm rounded-full bg-amber-100 text-amber-800 border border-amber-200"
+                  >
+                    {a}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 
           {/* Filter Buttons */}
-          <div className="flex justify-center gap-2 mb-6 flex-wrap">
+          <div className="flex justify-center flex-wrap gap-2 mb-8">
             {Object.keys(rangeLabels).map((key) => (
               <button
                 key={key}
-                onClick={() => filterByRange(key)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                onClick={() => setTimeRange(key)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-150 ${
                   timeRange === key
-                    ? "bg-amber-400 border-amber-500 text-white"
+                    ? "bg-amber-500 border-amber-600 text-white shadow"
                     : "bg-white border-neutral-200 text-neutral-600 hover:bg-amber-50"
                 }`}
               >
@@ -172,22 +164,24 @@ export default function ProfilePage() {
           </div>
 
           {/* Fart History */}
-          <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm mb-4">
-            <h2 className="text-lg font-semibold text-neutral-700 mb-3">
-              💨 My Fart Log ({rangeLabels[timeRange]})
+          <div className="bg-white border border-neutral-200 rounded-3xl p-5 shadow-md">
+            <h2 className="text-lg font-semibold text-neutral-800 mb-4">
+              💨 Fart Log ({rangeLabels[timeRange]})
             </h2>
-            <div className="flex flex-col gap-3">
-              {filteredFarts().length === 0 ? (
-                <p className="text-sm text-neutral-500">No farts yet!</p>
-              ) : (
-                filteredFarts().map((f, i) => (
+            {filteredFarts().length === 0 ? (
+              <p className="text-sm text-neutral-500 text-center py-6">
+                No farts yet — get out there and make history!
+              </p>
+            ) : (
+              <div className="grid gap-3">
+                {filteredFarts().map((f, i) => (
                   <div
                     key={i}
-                    className="border border-neutral-200 rounded-xl p-4 shadow-sm flex justify-between bg-white/90 hover:bg-amber-50/40 transition-all"
+                    className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50 hover:bg-amber-50/60 transition-all flex justify-between items-start"
                   >
                     <div>
-                      <div className="text-sm text-neutral-700">
-                        {f.source === "gps" ? "📍 GPS" : "🌍 IP"} fart
+                      <div className="text-sm font-medium text-neutral-800">
+                        {f.source === "gps" ? "📍 GPS fart" : "🌍 IP fart"}
                       </div>
                       <div className="text-xs text-neutral-500">
                         Lat: {f.lat.toFixed(4)}, Lng: {f.lng.toFixed(4)}
@@ -198,15 +192,13 @@ export default function ProfilePage() {
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-neutral-500 text-right">
+                    <div className="text-right text-xs text-neutral-500">
                       {timeAgo(f.ts)}
-                      <br />
-                      <span className="text-[10px]">{formatDate(f.ts)}</span>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

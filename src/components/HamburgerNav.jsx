@@ -4,18 +4,24 @@ import { Link, useNavigate } from "react-router-dom";
 export default function HamburgerNav() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const buttonRef = useRef(null);
   const navigate = useNavigate();
 
   // Close menu when clicking outside
   useEffect(() => {
     function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
         setOpen(false);
       }
     }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  }, []);
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
@@ -37,7 +43,10 @@ export default function HamburgerNav() {
         <div className="flex items-center gap-3">
           {/* Profile Icon */}
           <button
-            onClick={() => navigate("/profile")}
+            onClick={() => {
+              navigate("/profile");
+              setOpen(false);
+            }}
             className="p-2 rounded-full bg-amber-100 hover:bg-amber-200 transition-all duration-150 text-xl"
             aria-label="Profile"
           >
@@ -46,8 +55,9 @@ export default function HamburgerNav() {
 
           {/* Hamburger Button */}
           <button
+            ref={buttonRef}
             aria-label="menu"
-            onClick={() => setOpen(!open)}
+            onClick={() => setOpen((prev) => !prev)}
             className={`p-2 rounded-md bg-amber-100 hover:bg-amber-200 transition-all duration-150 text-lg ${
               open ? "rotate-90" : ""
             }`}
