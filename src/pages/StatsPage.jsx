@@ -74,6 +74,30 @@ export default function StatsPage() {
     return `${Math.floor(diff / 86400)}d ago`;
   }
 
+  // 🔸 Custom date formatter (e.g. "11th December 25' @ 2:45PM")
+  function formatFartDate(ts) {
+    const date = new Date(ts);
+    const day = date.getDate();
+    const month = date.toLocaleString("default", { month: "long" });
+    const year = date.getFullYear().toString().slice(2);
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12;
+
+    // Day suffix (st, nd, rd, th)
+    const suffix =
+      day % 10 === 1 && day !== 11
+        ? "st"
+        : day % 10 === 2 && day !== 12
+        ? "nd"
+        : day % 10 === 3 && day !== 13
+        ? "rd"
+        : "th";
+
+    return `${day}${suffix} ${month} ${year}' @ ${hours}:${minutes}${ampm}`;
+  }
+
   function filterByRange(range) {
     const now = Date.now();
     let cutoff = 0;
@@ -196,11 +220,11 @@ export default function StatsPage() {
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-neutral-500 text-right min-w-[100px]">
+                    <div className="text-xs text-neutral-500 text-right min-w-[130px]">
                       {timeAgo(f.ts)}
                       <br />
-                      <span className="text-[10px] block">
-                        {new Date(f.ts).toLocaleString()}
+                      <span className="text-[11px] block font-medium text-neutral-600">
+                        {formatFartDate(f.ts)}
                       </span>
                     </div>
                   </div>
