@@ -9,11 +9,13 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("all");
   const [myUsername, setMyUsername] = useState("");
+  const [myDeviceId, setMyDeviceId] = useState("");
   const [myCount, setMyCount] = useState(0);
 
   useEffect(() => {
-    const { username } = getIdentity();
+    const { username, deviceId } = getIdentity();
     setMyUsername(username);
+    setMyDeviceId(deviceId);
 
     async function fetchFarts() {
       try {
@@ -30,7 +32,7 @@ export default function StatsPage() {
 
         setFarts(sorted);
         setFiltered(sorted);
-        updateLeaderboard(sorted, username);
+        updateLeaderboard(sorted, deviceId, username);
       } catch (err) {
         console.error("Failed to load farts:", err);
       } finally {
@@ -41,20 +43,29 @@ export default function StatsPage() {
     fetchFarts();
   }, []);
 
-  function updateLeaderboard(list, username) {
-    const counts = {};
+  function updateLeaderboard(list, deviceId, username) {
+    // Group by deviceId to ensure farts stay tied to the same user, even after name changes
+    const deviceMap = {};
     list.forEach((f) => {
-      const user = f.username || "Anonymous Farter 💨";
-      counts[user] = (counts[user] || 0) + 1;
+      if (!f.deviceId) return;
+      if (!deviceMap[f.deviceId]) {
+        deviceMap[f.deviceId] = { username: f.username, count: 0 };
+      }
+      deviceMap[f.deviceId].count++;
     });
 
-    const lb = Object.entries(counts)
-      .map(([username, count]) => ({ username, count }))
+    // Replace your current username for your deviceId
+    if (deviceMap[deviceId]) {
+      deviceMap[deviceId].username = username;
+    }
+
+    const lb = Object.entries(deviceMap)
+      .map(([id, info]) => ({ username: info.username, count: info.count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
     setLeaderboard(lb);
-    setMyCount(counts[username] || 0);
+    setMyCount(deviceMap[deviceId]?.count || 0);
   }
 
   function timeAgo(ts) {
@@ -79,7 +90,7 @@ export default function StatsPage() {
         : farts.filter((f) => new Date(f.ts).getTime() >= cutoff);
 
     setFiltered(filteredList);
-    updateLeaderboard(filteredList, myUsername);
+    updateLeaderboard(filteredList, myDeviceId, myUsername);
     setTimeRange(range);
   }
 
@@ -163,7 +174,7 @@ export default function StatsPage() {
                 >
                   <div>
                     <div className="text-sm text-neutral-700">
-                      {f.username || "Anonymous Farter 💨"}
+                      {f.deviceId === myDeviceId ? myUsername : f.username}
                     </div>
                     <div className="text-xs text-neutral-500">
                       {f.source === "gps" ? "📍 GPS" : "🌍 IP"} fart — Lat:{" "}
