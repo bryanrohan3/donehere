@@ -23,8 +23,8 @@ export default function HamburgerNav() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  return +(
-    <header className="bg-white shadow-sm sticky top-0 z-1000">
+  return (
+    <header className="bg-white shadow-sm sticky top-0 z-30">
       <div className="max-w-3xl mx-auto flex items-center justify-between p-3 relative">
         {/* Left Section - Logo + Title */}
         <div className="flex items-center gap-3">
