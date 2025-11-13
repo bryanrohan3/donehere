@@ -1,9 +1,10 @@
-import fs from "fs";
-import path from "path";
+import fetch from "node-fetch";
 
-const tempPath = path.join("/tmp", "farts.json");
 const API_SECRET = process.env.API_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const GITHUB_REPO = process.env.GITHUB_REPO;
+const GITHUB_FILE_PATH = process.env.GITHUB_FILE_PATH || "farts.json";
 
 const SCALE = 1e5;
 
@@ -37,6 +38,42 @@ async function parseBody(req) {
   return JSON.parse(raw || "{}");
 }
 
+async function getFileInfo() {
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+    {
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    }
+  );
+  if (!res.ok) throw new Error("Failed to read GitHub farts.json");
+  return await res.json();
+}
+
+async function updateFile(content, sha, message) {
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify({
+        message,
+        content: Buffer.from(JSON.stringify(content, null, 2)).toString(
+          "base64"
+        ),
+        sha,
+      }),
+    }
+  );
+  if (!res.ok) throw new Error("Failed to update GitHub file");
+  return await res.json();
+}
+
 export default async function handler(req, res) {
   const key = req.headers["x-api-key"];
   if (!key || key !== API_SECRET) {
@@ -44,14 +81,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!fs.existsSync(tempPath)) {
-      fs.writeFileSync(tempPath, "[]", "utf8");
-    }
+    // Load file from GitHub
+    const file = await getFileInfo();
+    const existing = JSON.parse(
+      Buffer.from(file.content, "base64").toString("utf8") || "[]"
+    );
 
-    // ✅ GET — fetch farts
+    // ✅ GET — fetch all farts
     if (req.method === "GET") {
-      const raw = JSON.parse(fs.readFileSync(tempPath, "utf8"));
-      const decoded = raw
+      const decoded = existing
         .map((item) => {
           if (item.hexLat && item.hexLng) {
             const { lat, lng } = hexToCoord(item.hexLat, item.hexLng);
@@ -71,7 +109,7 @@ export default async function handler(req, res) {
       return res.status(200).json(decoded);
     }
 
-    // ✅ POST — save fart
+    // ✅ POST — save new fart
     if (req.method === "POST") {
       const newFart = await parseBody(req);
       if (typeof newFart.lat !== "number" || typeof newFart.lng !== "number") {
@@ -87,21 +125,24 @@ export default async function handler(req, res) {
         ts: newFart.ts ?? new Date().toISOString(),
       };
 
-      const existing = JSON.parse(fs.readFileSync(tempPath, "utf8"));
-      existing.push(saved);
-      fs.writeFileSync(tempPath, JSON.stringify(existing, null, 2));
+      const updated = [...existing, saved];
+      await updateFile(
+        updated,
+        file.sha,
+        `💨 New fart at ${new Date().toISOString()}`
+      );
 
       return res.status(200).json({ ok: true });
     }
 
-    // ✅ DELETE — admin-only clear all farts
+    // ✅ DELETE — admin only
     if (req.method === "DELETE") {
       const adminHeader = req.headers["x-admin-key"];
       if (!adminHeader || adminHeader !== ADMIN_KEY) {
         return res.status(403).json({ error: "Admin key required" });
       }
 
-      fs.writeFileSync(tempPath, "[]", "utf8");
+      await updateFile([], file.sha, "🧹 Cleared all farts");
       console.log("🧹 All farts cleared by admin");
       return res.status(200).json({ ok: true, message: "All farts cleared" });
     }
