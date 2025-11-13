@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { getIdentity, setUsername } from "../utils/identity";
 
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-const COORD_THRESHOLD = 0.0005; // about 50m
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 mins
+const COORD_THRESHOLD = 0.0005; // ~50m
 
 export default function FartPage() {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [puff, setPuff] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [username, setUser] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState("");
 
-  // --- Helper: check cooldown ---
+  useEffect(() => {
+    const { username } = getIdentity();
+    setUser(username);
+  }, []);
+
   function checkCooldown(lat, lng) {
     const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
-    if (!last.ts) return false; // no previous fart
-
+    if (!last.ts) return false;
     const elapsed = Date.now() - last.ts;
     if (elapsed < COOLDOWN_MS) {
       const dist = Math.sqrt(
@@ -22,54 +29,52 @@ export default function FartPage() {
       );
       if (dist < COORD_THRESHOLD) {
         setCooldownRemaining(COOLDOWN_MS - elapsed);
-        return true; // still cooling down nearby
+        return true;
       }
     }
     return false;
   }
 
-  // --- Helper: format remaining time ---
   function formatTime(ms) {
     const mins = Math.floor(ms / 60000);
     const secs = Math.floor((ms % 60000) / 1000);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   }
 
-  // --- API call ---
   async function sendFart(lat, lng, accuracy, source = "gps") {
+    const { deviceId, username } = getIdentity();
     const payload = {
       lat,
       lng,
       accuracy,
       source,
       ts: new Date().toISOString(),
+      deviceId,
+      username,
     };
+
     await axios.post("/api/farts", payload, {
-      headers: {
-        "x-api-key": import.meta.env.VITE_API_SECRET,
-      },
+      headers: { "x-api-key": import.meta.env.VITE_API_SECRET },
     });
   }
 
-  // --- Main report function ---
   async function reportFart() {
     setStatus("");
     if (!navigator.geolocation) {
-      setStatus("❌ Geolocation not supported by your device.");
+      setStatus("❌ Geolocation not supported.");
       return;
     }
 
     setSending(true);
     setPuff(true);
 
-    // Try GPS
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng, accuracy } = pos.coords;
 
         if (checkCooldown(lat, lng)) {
           setStatus(
-            `🕒 Slow down! You can fart again in ${formatTime(
+            `🕒 Hold it! You can fart again in ${formatTime(
               cooldownRemaining
             )}.`
           );
@@ -94,9 +99,8 @@ export default function FartPage() {
           setTimeout(() => setPuff(false), 400);
         }
       },
-      async (err) => {
-        setStatus("⚠️ Location failed. Try again or allow permissions.");
-        console.warn(err);
+      () => {
+        setStatus("⚠️ Location failed or denied.");
         setSending(false);
         setTimeout(() => setPuff(false), 400);
       },
@@ -104,21 +108,26 @@ export default function FartPage() {
     );
   }
 
-  // --- Countdown updater ---
   useEffect(() => {
     const timer = setInterval(() => {
       const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
       if (last.ts) {
         const elapsed = Date.now() - last.ts;
-        if (elapsed < COOLDOWN_MS) {
-          setCooldownRemaining(COOLDOWN_MS - elapsed);
-        } else {
-          setCooldownRemaining(0);
-        }
+        setCooldownRemaining(elapsed < COOLDOWN_MS ? COOLDOWN_MS - elapsed : 0);
       }
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  function handleSaveUsername() {
+    if (setUsername(newName)) {
+      setUser(newName);
+      setEditing(false);
+      setNewName("");
+    } else {
+      alert("Invalid name. Must be 3+ characters.");
+    }
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-amber-100 via-yellow-50 to-green-100 px-6 relative overflow-hidden">
@@ -147,23 +156,52 @@ export default function FartPage() {
         )}
       </button>
 
-      {/* Status bubble */}
       {status && (
         <div className="mt-8 bg-white/90 border border-amber-200 text-neutral-700 text-sm py-3 px-5 rounded-2xl shadow-md max-w-xs text-center animate-fade-in">
           {status}
         </div>
       )}
 
-      {/* Cooldown timer */}
       {cooldownRemaining > 0 && (
         <p className="mt-4 text-xs text-neutral-500">
           ⏳ You can fart again in {formatTime(cooldownRemaining)}
         </p>
       )}
 
+      {/* Username section */}
+      <div className="mt-8 text-center">
+        {editing ? (
+          <div className="flex flex-col items-center gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="border rounded-full px-3 py-1 text-sm"
+              placeholder="Enter new fart name..."
+            />
+            <button
+              onClick={handleSaveUsername}
+              className="bg-amber-500 text-white px-3 py-1 rounded-full text-sm"
+            >
+              Save
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-neutral-600">
+              You are <strong>{username}</strong> 💨
+            </p>
+            <button
+              onClick={() => setEditing(true)}
+              className="text-xs text-amber-600 underline mt-1"
+            >
+              Change name
+            </button>
+          </>
+        )}
+      </div>
+
       <p className="mt-10 text-xs text-neutral-500 text-center max-w-xs">
-        Your approximate coordinates are shared publicly. Please fart
-        responsibly 😎
+        Your approximate coordinates are public. Please fart responsibly 😎
       </p>
     </div>
   );

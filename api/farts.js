@@ -112,6 +112,7 @@ export default async function handler(req, res) {
               accuracy: item.accuracy ?? null,
               source: item.source ?? "unknown",
               ts: item.ts ?? null,
+              username: item.username ?? "AnonymousFarter",
             };
           }
           return item;
@@ -139,6 +140,8 @@ export default async function handler(req, res) {
         accuracy: newFart.accuracy ?? null,
         source: newFart.source ?? "gps",
         ts: newFart.ts ?? new Date().toISOString(),
+        deviceId: newFart.deviceId ?? null,
+        username: newFart.username ?? "AnonymousFarter",
       };
 
       const updated = [...existing, saved];

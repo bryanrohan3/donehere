@@ -23,7 +23,7 @@ function FitBounds({ farts }) {
   return null;
 }
 
-// --- Zoom and bounds watcher ---
+// --- Zoom + movement watcher ---
 function ZoomWatcher({ onZoomChange }) {
   useMapEvents({
     zoomend: (e) => onZoomChange(e.target.getZoom(), e.target.getBounds()),
@@ -32,7 +32,7 @@ function ZoomWatcher({ onZoomChange }) {
   return null;
 }
 
-// --- Hex decoding helper ---
+// --- Helper: convert hex coordinates ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
@@ -40,7 +40,7 @@ function hexToCoord(hexLat, hexLng) {
   return { lat: latInt / SCALE, lng: lngInt / SCALE };
 }
 
-// --- Hot zone clustering helper ---
+// --- Helper: cluster nearby farts ---
 function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   const clusters = [];
   const visited = new Set();
@@ -87,7 +87,7 @@ export default function MapPage() {
     }
   }, []);
 
-  // Fetch fart data
+  // Load fart data
   useEffect(() => {
     let mounted = true;
     axios
@@ -96,28 +96,39 @@ export default function MapPage() {
       })
       .then((r) => {
         if (!mounted) return;
-        let data = r.data || [];
-        data = data.map((f) => {
+        const now = Date.now();
+        const last24h = 24 * 60 * 60 * 1000;
+
+        // Parse + filter recent farts only for hot zones
+        let data = (r.data || []).map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
             return { ...f, lat, lng };
           }
           return f;
         });
+
         setFarts(data);
-        setHotZones(findHotZones(data));
+
+        // Filter to only last 24h for active hot zones
+        const recent = data.filter(
+          (f) => now - new Date(f.ts).getTime() <= last24h
+        );
+        setHotZones(findHotZones(recent));
+
         setLoading(false);
       })
       .catch((e) => {
         console.error("Failed to fetch farts:", e);
         setLoading(false);
       });
+
     return () => {
       mounted = false;
     };
   }, []);
 
-  // Reset all farts (admin)
+  // Reset all farts (admin only)
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -150,7 +161,7 @@ export default function MapPage() {
           <div className="p-10 text-center">Loading map entries…</div>
         ) : (
           <>
-            {/* 🧮 Header */}
+            {/* Header */}
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xl font-semibold">💨 Global Fart Map</h2>
               <span className="text-gray-600">
@@ -175,11 +186,16 @@ export default function MapPage() {
                   const visibleFarts = farts.filter((f) =>
                     bounds.contains([f.lat, f.lng])
                   );
-                  setHotZones(findHotZones(visibleFarts));
+                  const now = Date.now();
+                  const last24h = 24 * 60 * 60 * 1000;
+                  const recentVisible = visibleFarts.filter(
+                    (f) => now - new Date(f.ts).getTime() <= last24h
+                  );
+                  setHotZones(findHotZones(recentVisible));
                 }}
               />
 
-              {/* 💩 Farts */}
+              {/* 💩 Individual Farts */}
               {farts.map((f, i) => (
                 <CircleMarker
                   key={i}
@@ -203,12 +219,15 @@ export default function MapPage() {
                       <div>
                         <strong>Source:</strong> {f.source ?? "unknown"}
                       </div>
+                      <div>
+                        <strong>Farter:</strong> {f.username ?? "Anonymous"} 💨
+                      </div>
                     </div>
                   </Popup>
                 </CircleMarker>
               ))}
 
-              {/* 🔥 Hot Zones */}
+              {/* 🔥 Active Fart Hot Zones (last 24h) */}
               {hotZones.map((zone, i) => (
                 <CircleMarker
                   key={`zone-${i}`}
@@ -223,10 +242,10 @@ export default function MapPage() {
                 >
                   <Popup>
                     <div className="text-sm font-semibold text-red-700">
-                      🔥 Fart Hot Zone
+                      🔥 Active Fart Zone (last 24h)
                       <br />
                       <span className="text-xs text-neutral-600">
-                        {zone.count} farts nearby
+                        {zone.count} recent farts nearby
                       </span>
                     </div>
                   </Popup>
