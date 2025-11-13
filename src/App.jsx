@@ -5,7 +5,7 @@ import MapPage from "./pages/MapPage";
 import HamburgerNav from "./components/HamburgerNav";
 import StatsPage from "./pages/StatsPage";
 import AboutPage from "./pages/AboutPage";
-import MyFartsPage from "./pages/MyFartsPage";
+import ProfilePage from "./pages/ProfilePage"; // ✅ updated import
 
 export default function App() {
   return (
@@ -17,7 +17,7 @@ export default function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/about" element={<AboutPage />} />
-          <Route path="/my-farts" element={<MyFartsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />{" "}
         </Routes>
       </main>
     </div>

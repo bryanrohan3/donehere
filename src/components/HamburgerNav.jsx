@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function HamburgerNav() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const navigate = useNavigate();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -19,7 +20,7 @@ export default function HamburgerNav() {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
       <div className="max-w-3xl mx-auto flex items-center justify-between p-3">
-        {/* Logo / Title */}
+        {/* Left Section - Logo + Title */}
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-emerald-200 w-10 h-10 flex items-center justify-center font-bold text-lg">
             💨
@@ -32,16 +33,28 @@ export default function HamburgerNav() {
           </div>
         </div>
 
-        {/* Hamburger Button */}
-        <button
-          aria-label="menu"
-          onClick={() => setOpen(!open)}
-          className={`p-2 rounded-md bg-amber-100 hover:bg-amber-200 transition-all duration-150 ${
-            open ? "rotate-90" : ""
-          }`}
-        >
-          ☰
-        </button>
+        {/* Right Section - Profile + Hamburger */}
+        <div className="flex items-center gap-3">
+          {/* Profile Icon */}
+          <button
+            onClick={() => navigate("/profile")}
+            className="p-2 rounded-full bg-amber-100 hover:bg-amber-200 transition-all duration-150 text-xl"
+            aria-label="Profile"
+          >
+            👤
+          </button>
+
+          {/* Hamburger Button */}
+          <button
+            aria-label="menu"
+            onClick={() => setOpen(!open)}
+            className={`p-2 rounded-md bg-amber-100 hover:bg-amber-200 transition-all duration-150 text-lg ${
+              open ? "rotate-90" : ""
+            }`}
+          >
+            ☰
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu */}
@@ -78,13 +91,6 @@ export default function HamburgerNav() {
               className="p-2 rounded hover:bg-neutral-100"
             >
               About
-            </Link>
-            <Link
-              to="/my-farts"
-              onClick={() => setOpen(false)}
-              className="p-2 rounded hover:bg-neutral-100"
-            >
-              My Farts
             </Link>
           </div>
         </nav>
