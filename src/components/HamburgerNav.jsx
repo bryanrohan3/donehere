@@ -72,6 +72,13 @@ export default function HamburgerNav() {
             >
               Stats
             </Link>
+            <Link
+              to="/about"
+              onClick={() => setOpen(false)}
+              className="p-2 rounded hover:bg-neutral-100"
+            >
+              About
+            </Link>
           </div>
         </nav>
       )}
