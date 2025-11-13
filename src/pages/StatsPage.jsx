@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { getIdentity } from "../utils/identity";
 
 export default function StatsPage() {
   const [farts, setFarts] = useState([]);
@@ -11,9 +12,8 @@ export default function StatsPage() {
   const [myCount, setMyCount] = useState(0);
 
   useEffect(() => {
-    const savedUsername =
-      localStorage.getItem("fartUsername") || "Anonymous Farter 💨";
-    setMyUsername(savedUsername);
+    const { username } = getIdentity();
+    setMyUsername(username);
 
     async function fetchFarts() {
       try {
@@ -30,7 +30,7 @@ export default function StatsPage() {
 
         setFarts(sorted);
         setFiltered(sorted);
-        updateLeaderboard(sorted, savedUsername);
+        updateLeaderboard(sorted, username);
       } catch (err) {
         console.error("Failed to load farts:", err);
       } finally {
@@ -99,7 +99,6 @@ export default function StatsPage() {
         <p className="text-neutral-500">Loading farts...</p>
       ) : (
         <>
-          {/* --- My Info --- */}
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6 text-center">
             <p className="text-lg font-semibold text-green-700">
               You are <span className="font-bold">{myUsername}</span>
@@ -110,7 +109,6 @@ export default function StatsPage() {
             </p>
           </div>
 
-          {/* --- Time Filter Buttons --- */}
           <div className="flex justify-center gap-2 mb-6 flex-wrap">
             {Object.keys(rangeLabels).map((key) => (
               <button
@@ -127,7 +125,6 @@ export default function StatsPage() {
             ))}
           </div>
 
-          {/* --- Leaderboard --- */}
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
             <h2 className="text-lg font-semibold text-amber-700 mb-2">
               🏆 Top Farters ({rangeLabels[timeRange]})
@@ -154,7 +151,6 @@ export default function StatsPage() {
             )}
           </div>
 
-          {/* --- Recent Farts --- */}
           <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm mb-4">
             <h2 className="text-lg font-semibold text-neutral-700 mb-3">
               🕒 Most Recent Farts ({rangeLabels[timeRange]})

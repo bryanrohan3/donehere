@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { getIdentity, setUsername } from "../utils/identity";
 
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 mins
-const COORD_THRESHOLD = 0.0005; // ~50m
+const COOLDOWN_MS = 5 * 60 * 1000;
+const COORD_THRESHOLD = 0.0005;
 
 export default function FartPage() {
   const [status, setStatus] = useState("");

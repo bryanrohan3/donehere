@@ -89,17 +89,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("🚀 Request method:", req.method);
-
     const file = await getFileInfo();
     const sha = file.sha;
-    console.log("📄 Current GitHub file SHA:", sha);
-
     const existing = JSON.parse(
       Buffer.from(file.content, "base64").toString("utf8") || "[]"
     );
 
-    // ✅ GET — fetch all farts
     if (req.method === "GET") {
       const decoded = existing
         .map((item) => {
@@ -112,6 +107,7 @@ export default async function handler(req, res) {
               accuracy: item.accuracy ?? null,
               source: item.source ?? "unknown",
               ts: item.ts ?? null,
+              deviceId: item.deviceId ?? null,
               username: item.username ?? "AnonymousFarter",
             };
           }
@@ -119,17 +115,12 @@ export default async function handler(req, res) {
         })
         .filter(Boolean);
 
-      console.log("📤 Returning", decoded.length, "farts");
       return res.status(200).json(decoded);
     }
 
-    // ✅ POST — save new fart
     if (req.method === "POST") {
       const newFart = await parseBody(req);
-      console.log("💨 New fart received:", newFart);
-
       if (typeof newFart.lat !== "number" || typeof newFart.lng !== "number") {
-        console.log("❌ Invalid coordinates");
         return res.status(400).json({ error: "Invalid lat/lng" });
       }
 
@@ -144,33 +135,27 @@ export default async function handler(req, res) {
         username: newFart.username ?? "AnonymousFarter",
       };
 
+      // ✅ If username changes, we keep the old farts under the same deviceId
       const updated = [...existing, saved];
 
-      console.log("📦 Committing fart to GitHub...");
       await updateFile(
         updated,
         sha,
         `💨 New fart at ${new Date().toISOString()}`
       );
-
-      console.log("✅ Fart committed!");
       return res.status(200).json({ ok: true });
     }
 
-    // ✅ DELETE — admin only
     if (req.method === "DELETE") {
       const adminHeader = req.headers["x-admin-key"];
       if (!adminHeader || adminHeader !== ADMIN_KEY) {
-        console.log("🚫 Invalid admin key");
         return res.status(403).json({ error: "Admin key required" });
       }
 
       await updateFile([], sha, "🧹 Cleared all farts");
-      console.log("🧹 All farts cleared");
       return res.status(200).json({ ok: true, message: "All farts cleared" });
     }
 
-    // Default case
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
     console.error("💩 API error:", err.message);
