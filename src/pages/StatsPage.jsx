@@ -44,7 +44,6 @@ export default function StatsPage() {
   }, []);
 
   function updateLeaderboard(list, deviceId, username) {
-    // Group by deviceId to ensure farts stay tied to the same user, even after name changes
     const deviceMap = {};
     list.forEach((f) => {
       if (!f.deviceId) return;
@@ -54,7 +53,6 @@ export default function StatsPage() {
       deviceMap[f.deviceId].count++;
     });
 
-    // Replace your current username for your deviceId
     if (deviceMap[deviceId]) {
       deviceMap[deviceId].username = username;
     }

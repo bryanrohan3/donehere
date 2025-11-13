@@ -76,7 +76,7 @@ async function updateFile(content, sha, message) {
 
   const text = await res.text();
   if (!res.ok) throw new Error(`❌ GitHub update failed: ${text}`);
-  console.log("✅ GitHub updated successfully:", text);
+  console.log("✅ GitHub updated successfully");
   return JSON.parse(text);
 }
 
@@ -109,6 +109,7 @@ export default async function handler(req, res) {
               ts: item.ts ?? null,
               deviceId: item.deviceId ?? null,
               username: item.username ?? "AnonymousFarter",
+              description: item.description ?? null, // ✅ added this line
             };
           }
           return item;
