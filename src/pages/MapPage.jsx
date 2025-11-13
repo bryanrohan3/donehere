@@ -186,7 +186,6 @@ export default function MapPage() {
             </div>
 
             <MapContainer
-              className="z-0"
               center={center}
               zoom={2}
               style={{ height: "70vh", width: "100%" }}
