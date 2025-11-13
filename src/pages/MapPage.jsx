@@ -5,12 +5,13 @@ import {
   CircleMarker,
   Popup,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import axios from "axios";
 import L from "leaflet";
 
-// Fit map bounds to all farts
+// --- Fit map bounds to all farts ---
 function FitBounds({ farts }) {
   const map = useMap();
   useEffect(() => {
@@ -22,7 +23,16 @@ function FitBounds({ farts }) {
   return null;
 }
 
-// --- Helper: convert hex to coords ---
+// --- Zoom and bounds watcher ---
+function ZoomWatcher({ onZoomChange }) {
+  useMapEvents({
+    zoomend: (e) => onZoomChange(e.target.getZoom(), e.target.getBounds()),
+    moveend: (e) => onZoomChange(e.target.getZoom(), e.target.getBounds()),
+  });
+  return null;
+}
+
+// --- Hex decoding helper ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
@@ -30,7 +40,7 @@ function hexToCoord(hexLat, hexLng) {
   return { lat: latInt / SCALE, lng: lngInt / SCALE };
 }
 
-// --- Helper: find clusters ("hot zones") ---
+// --- Hot zone clustering helper ---
 function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   const clusters = [];
   const visited = new Set();
@@ -66,8 +76,9 @@ export default function MapPage() {
   const [hotZones, setHotZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [zoom, setZoom] = useState(2);
 
-  // Admin detection via query param
+  // Admin check
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const adminKey = params.get("admin");
@@ -76,7 +87,7 @@ export default function MapPage() {
     }
   }, []);
 
-  // Load fart data
+  // Fetch fart data
   useEffect(() => {
     let mounted = true;
     axios
@@ -86,7 +97,6 @@ export default function MapPage() {
       .then((r) => {
         if (!mounted) return;
         let data = r.data || [];
-        // decode hex coordinates if present
         data = data.map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -107,7 +117,7 @@ export default function MapPage() {
     };
   }, []);
 
-  // Admin-only reset
+  // Reset all farts (admin)
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -140,7 +150,7 @@ export default function MapPage() {
           <div className="p-10 text-center">Loading map entries…</div>
         ) : (
           <>
-            {/* 🧮 Fart counter header */}
+            {/* 🧮 Header */}
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xl font-semibold">💨 Global Fart Map</h2>
               <span className="text-gray-600">
@@ -159,7 +169,17 @@ export default function MapPage() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {/* 💩 Individual farts */}
+              <ZoomWatcher
+                onZoomChange={(z, bounds) => {
+                  setZoom(z);
+                  const visibleFarts = farts.filter((f) =>
+                    bounds.contains([f.lat, f.lng])
+                  );
+                  setHotZones(findHotZones(visibleFarts));
+                }}
+              />
+
+              {/* 💩 Farts */}
               {farts.map((f, i) => (
                 <CircleMarker
                   key={i}
@@ -188,17 +208,17 @@ export default function MapPage() {
                 </CircleMarker>
               ))}
 
-              {/* 🔥 Fart Hot Zones */}
+              {/* 🔥 Hot Zones */}
               {hotZones.map((zone, i) => (
                 <CircleMarker
                   key={`zone-${i}`}
                   center={[zone.lat, zone.lng]}
-                  radius={20 + zone.count * 2}
+                  radius={Math.max(5, zone.count * 2 * (zoom / 6))}
                   pathOptions={{
                     color: "#dc2626",
                     fillColor: "#f87171",
-                    fillOpacity: 0.4,
-                    weight: 2,
+                    fillOpacity: 0.3,
+                    weight: 1.5,
                   }}
                 >
                   <Popup>
