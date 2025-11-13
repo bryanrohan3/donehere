@@ -11,7 +11,7 @@ import "leaflet/dist/leaflet.css";
 import axios from "axios";
 import L from "leaflet";
 
-// --- Fit map bounds to all farts ---
+// --- Fit bounds to all farts (fallback) ---
 function FitBounds({ farts }) {
   const map = useMap();
   useEffect(() => {
@@ -71,12 +71,32 @@ function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   return clusters;
 }
 
+// --- Center map on current location ---
+function CenterOnUser({ setHasCentered }) {
+  const map = useMap();
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          map.setView([latitude, longitude], 13); // 👈 zoom ~20 km radius
+          setHasCentered(true);
+        },
+        () => setHasCentered(false),
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  }, [map, setHasCentered]);
+  return null;
+}
+
 export default function MapPage() {
   const [farts, setFarts] = useState([]);
   const [hotZones, setHotZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [zoom, setZoom] = useState(2);
+  const [hasCentered, setHasCentered] = useState(false);
 
   // Admin check
   useEffect(() => {
@@ -99,7 +119,6 @@ export default function MapPage() {
         const now = Date.now();
         const last24h = 24 * 60 * 60 * 1000;
 
-        // Parse + filter recent farts only for hot zones
         let data = (r.data || []).map((f) => {
           if (f.hexLat && f.hexLng) {
             const { lat, lng } = hexToCoord(f.hexLat, f.hexLng);
@@ -110,12 +129,10 @@ export default function MapPage() {
 
         setFarts(data);
 
-        // Filter to only last 24h for active hot zones
         const recent = data.filter(
           (f) => now - new Date(f.ts).getTime() <= last24h
         );
         setHotZones(findHotZones(recent));
-
         setLoading(false);
       })
       .catch((e) => {
@@ -128,7 +145,7 @@ export default function MapPage() {
     };
   }, []);
 
-  // Reset all farts (admin only)
+  // Admin: clear all
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -161,7 +178,6 @@ export default function MapPage() {
           <div className="p-10 text-center">Loading map entries…</div>
         ) : (
           <>
-            {/* Header */}
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xl font-semibold">💨 Global Fart Map</h2>
               <span className="text-gray-600">
@@ -171,7 +187,7 @@ export default function MapPage() {
 
             <MapContainer
               center={center}
-              zoom={farts.length ? 13 : 2}
+              zoom={2}
               style={{ height: "70vh", width: "100%" }}
               scrollWheelZoom
             >
@@ -179,6 +195,10 @@ export default function MapPage() {
                 attribution="&copy; OpenStreetMap contributors"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+
+              {/* Try to center on user; fallback to FitBounds if not */}
+              {!hasCentered && <FitBounds farts={farts} />}
+              <CenterOnUser setHasCentered={setHasCentered} />
 
               <ZoomWatcher
                 onZoomChange={(z, bounds) => {
@@ -227,7 +247,7 @@ export default function MapPage() {
                 </CircleMarker>
               ))}
 
-              {/* 🔥 Active Fart Hot Zones (last 24h) */}
+              {/* 🔥 Active Hot Zones */}
               {hotZones.map((zone, i) => (
                 <CircleMarker
                   key={`zone-${i}`}
@@ -251,8 +271,6 @@ export default function MapPage() {
                   </Popup>
                 </CircleMarker>
               ))}
-
-              <FitBounds farts={farts} />
             </MapContainer>
 
             {isAdmin && (
