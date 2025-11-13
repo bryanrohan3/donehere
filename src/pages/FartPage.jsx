@@ -4,6 +4,7 @@ import { getIdentity, setUsername } from "../utils/identity";
 
 const COOLDOWN_MS = 5 * 60 * 1000;
 const COORD_THRESHOLD = 0.0005;
+const MAX_WORDS = 15;
 
 export default function FartPage() {
   const [status, setStatus] = useState("");
@@ -13,6 +14,7 @@ export default function FartPage() {
   const [username, setUser] = useState("");
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState("");
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
     const { username } = getIdentity();
@@ -51,6 +53,7 @@ export default function FartPage() {
       ts: new Date().toISOString(),
       deviceId,
       username,
+      description: description.trim() || null,
     };
 
     await axios.post("/api/farts", payload, {
@@ -90,6 +93,7 @@ export default function FartPage() {
             JSON.stringify({ lat, lng, ts: Date.now() })
           );
           if (navigator.vibrate) navigator.vibrate(80);
+          setDescription(""); // clear after send
           setStatus("💨 Your fart has been immortalized on the map!");
         } catch (err) {
           console.error(err);
@@ -129,6 +133,18 @@ export default function FartPage() {
     }
   }
 
+  function handleDescriptionChange(e) {
+    const value = e.target.value;
+    const words = value.trim().split(/\s+/);
+    if (words.length <= MAX_WORDS) {
+      setDescription(value);
+    }
+  }
+
+  const wordCount = description.trim()
+    ? description.trim().split(/\s+/).length
+    : 0;
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-amber-100 via-yellow-50 to-green-100 px-6 relative overflow-hidden">
       <div className="text-center mb-10">
@@ -140,6 +156,21 @@ export default function FartPage() {
         </p>
       </div>
 
+      {/* Optional fart description */}
+      <div className="w-full max-w-xs mb-6">
+        <textarea
+          value={description}
+          onChange={handleDescriptionChange}
+          placeholder="Describe your fart (optional, max 15 words)"
+          rows={2}
+          className="w-full border border-amber-300 rounded-2xl px-3 py-2 text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white/80"
+        />
+        <p className="text-right text-xs text-neutral-500 mt-1">
+          {wordCount}/{MAX_WORDS} words
+        </p>
+      </div>
+
+      {/* Main fart button */}
       <button
         onClick={reportFart}
         disabled={sending || cooldownRemaining > 0}

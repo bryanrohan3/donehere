@@ -180,6 +180,11 @@ export default function StatsPage() {
                       {f.source === "gps" ? "📍 GPS" : "🌍 IP"} fart — Lat:{" "}
                       {f.lat.toFixed(4)}, Lng: {f.lng.toFixed(4)}
                     </div>
+                    {f.description && (
+                      <div className="text-xs italic text-neutral-600 mt-1">
+                        “{f.description}”
+                      </div>
+                    )}
                   </div>
                   <div className="text-xs text-neutral-500 text-right">
                     {timeAgo(f.ts)}

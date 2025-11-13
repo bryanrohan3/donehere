@@ -133,9 +133,12 @@ export default async function handler(req, res) {
         ts: newFart.ts ?? new Date().toISOString(),
         deviceId: newFart.deviceId ?? null,
         username: newFart.username ?? "AnonymousFarter",
+        description:
+          typeof newFart.description === "string"
+            ? newFart.description.slice(0, 120)
+            : null,
       };
 
-      // ✅ If username changes, we keep the old farts under the same deviceId
       const updated = [...existing, saved];
 
       await updateFile(

@@ -242,6 +242,11 @@ export default function MapPage() {
                       <div>
                         <strong>Farter:</strong> {f.username ?? "Anonymous"} 💨
                       </div>
+                      {f.description && (
+                        <div className="mt-1 italic text-neutral-600">
+                          “{f.description}”
+                        </div>
+                      )}
                     </div>
                   </Popup>
                 </CircleMarker>
