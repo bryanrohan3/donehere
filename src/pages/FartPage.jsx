@@ -1,56 +1,41 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const COORD_THRESHOLD = 0.0005; // about 50m
+
 export default function FartPage() {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [puff, setPuff] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
-  const COOLDOWN_MINUTES = 5;
+  // --- Helper: check cooldown ---
+  function checkCooldown(lat, lng) {
+    const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
+    if (!last.ts) return false; // no previous fart
 
-  // 🔢 Haversine distance in meters
-  function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(Δφ / 2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const elapsed = Date.now() - last.ts;
+    if (elapsed < COOLDOWN_MS) {
+      const dist = Math.sqrt(
+        Math.pow(lat - last.lat, 2) + Math.pow(lng - last.lng, 2)
+      );
+      if (dist < COORD_THRESHOLD) {
+        setCooldownRemaining(COOLDOWN_MS - elapsed);
+        return true; // still cooling down nearby
+      }
+    }
+    return false;
   }
 
-  // 🕓 Check cooldown validity
-  function canFartHere(lat, lng) {
-    const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
-    if (!last.time || !last.lat || !last.lng) return true;
-
-    const elapsed = (Date.now() - last.time) / 1000 / 60;
-    const distance = getDistanceFromLatLonInM(lat, lng, last.lat, last.lng);
-
-    if (elapsed < COOLDOWN_MINUTES && distance < 100) {
-      const minsLeft = (COOLDOWN_MINUTES - elapsed).toFixed(1);
-      setStatus(`😤 Too soon! Wait ${minsLeft} min before farting nearby.`);
-      return false;
-    }
-    return true;
+  // --- Helper: format remaining time ---
+  function formatTime(ms) {
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   }
 
-  // 🔄 Start countdown display
-  useEffect(() => {
-    const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
-    if (last.time) {
-      const interval = setInterval(() => {
-        const elapsed = (Date.now() - last.time) / 1000 / 60;
-        const left = Math.max(0, COOLDOWN_MINUTES - elapsed);
-        setCooldown(left > 0 ? Math.ceil(left * 60) : 0); // seconds
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, []);
-
+  // --- API call ---
   async function sendFart(lat, lng, accuracy, source = "gps") {
     const payload = {
       lat,
@@ -66,9 +51,9 @@ export default function FartPage() {
     });
   }
 
+  // --- Main report function ---
   async function reportFart() {
     setStatus("");
-
     if (!navigator.geolocation) {
       setStatus("❌ Geolocation not supported by your device.");
       return;
@@ -77,77 +62,63 @@ export default function FartPage() {
     setSending(true);
     setPuff(true);
 
-    const fallbackLocation = async () => {
-      try {
-        setStatus("🌍 Using approximate IP location...");
-        const res = await fetch("https://ipapi.co/json/");
-        const data = await res.json();
-
-        if (data && data.latitude && data.longitude) {
-          if (!canFartHere(data.latitude, data.longitude)) {
-            setSending(false);
-            setPuff(false);
-            return;
-          }
-          await sendFart(data.latitude, data.longitude, 10000, "ip");
-          localStorage.setItem(
-            "lastFart",
-            JSON.stringify({
-              lat: data.latitude,
-              lng: data.longitude,
-              time: Date.now(),
-            })
-          );
-          setStatus("💨 Fart added using IP-based location!");
-        } else throw new Error("Invalid IP geolocation response");
-      } catch (err) {
-        console.error("Fallback failed:", err);
-        setStatus("⚠️ Couldn’t determine location even via fallback.");
-      } finally {
-        setSending(false);
-        setTimeout(() => setPuff(false), 500);
-      }
-    };
-
+    // Try GPS
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        if (!canFartHere(latitude, longitude)) {
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+
+        if (checkCooldown(lat, lng)) {
+          setStatus(
+            `🕒 Slow down! You can fart again in ${formatTime(
+              cooldownRemaining
+            )}.`
+          );
           setSending(false);
-          setPuff(false);
+          setTimeout(() => setPuff(false), 400);
           return;
         }
 
         try {
-          await sendFart(latitude, longitude, accuracy, "gps");
+          await sendFart(lat, lng, accuracy, "gps");
           localStorage.setItem(
             "lastFart",
-            JSON.stringify({ lat: latitude, lng: longitude, time: Date.now() })
+            JSON.stringify({ lat, lng, ts: Date.now() })
           );
           if (navigator.vibrate) navigator.vibrate(80);
           setStatus("💨 Your fart has been immortalized on the map!");
-        } catch (e) {
-          console.error(e);
+        } catch (err) {
+          console.error(err);
           setStatus("⚠️ Failed to record fart — try again.");
         } finally {
           setSending(false);
-          setTimeout(() => setPuff(false), 500);
+          setTimeout(() => setPuff(false), 400);
         }
       },
       async (err) => {
-        console.warn("Geolocation failed:", err);
-        if (err.code === 2) await fallbackLocation();
-        else if (err.code === 1) setStatus("🚫 Location permission denied.");
-        else setStatus("⚠️ Location error — please retry.");
+        setStatus("⚠️ Location failed. Try again or allow permissions.");
+        console.warn(err);
         setSending(false);
-        setTimeout(() => setPuff(false), 500);
+        setTimeout(() => setPuff(false), 400);
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
   }
 
-  const seconds = cooldown % 60;
-  const minutes = Math.floor(cooldown / 60);
+  // --- Countdown updater ---
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const last = JSON.parse(localStorage.getItem("lastFart") || "{}");
+      if (last.ts) {
+        const elapsed = Date.now() - last.ts;
+        if (elapsed < COOLDOWN_MS) {
+          setCooldownRemaining(COOLDOWN_MS - elapsed);
+        } else {
+          setCooldownRemaining(0);
+        }
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-amber-100 via-yellow-50 to-green-100 px-6 relative overflow-hidden">
@@ -160,25 +131,17 @@ export default function FartPage() {
         </p>
       </div>
 
-      {/* Main fart button */}
       <button
         onClick={reportFart}
-        disabled={sending || cooldown > 0}
+        disabled={sending || cooldownRemaining > 0}
         className={`relative flex items-center justify-center text-[5rem] md:text-[6rem] rounded-full bg-gradient-to-b from-amber-300 to-amber-200 shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:scale-110 active:scale-95 transition-all duration-200 ${
-          sending || cooldown > 0 ? "opacity-70 cursor-not-allowed" : ""
+          sending || cooldownRemaining > 0
+            ? "opacity-70 cursor-not-allowed"
+            : ""
         }`}
-        style={{
-          width: "180px",
-          height: "180px",
-        }}
+        style={{ width: "180px", height: "180px" }}
       >
-        {cooldown > 0 ? (
-          <span className="text-2xl text-neutral-700">
-            ⏳ {minutes}:{seconds.toString().padStart(2, "0")}
-          </span>
-        ) : (
-          "💩"
-        )}
+        💩
         {puff && (
           <span className="absolute -top-10 text-4xl animate-puff">💨</span>
         )}
@@ -189,6 +152,13 @@ export default function FartPage() {
         <div className="mt-8 bg-white/90 border border-amber-200 text-neutral-700 text-sm py-3 px-5 rounded-2xl shadow-md max-w-xs text-center animate-fade-in">
           {status}
         </div>
+      )}
+
+      {/* Cooldown timer */}
+      {cooldownRemaining > 0 && (
+        <p className="mt-4 text-xs text-neutral-500">
+          ⏳ You can fart again in {formatTime(cooldownRemaining)}
+        </p>
       )}
 
       <p className="mt-10 text-xs text-neutral-500 text-center max-w-xs">
