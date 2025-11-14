@@ -11,18 +11,6 @@ import "leaflet/dist/leaflet.css";
 import axios from "axios";
 import L from "leaflet";
 
-// --- Fit bounds to all farts (fallback) ---
-function FitBounds({ farts }) {
-  const map = useMap();
-  useEffect(() => {
-    if (farts.length) {
-      const bounds = L.latLngBounds(farts.map((f) => [f.lat, f.lng]));
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
-  }, [farts, map]);
-  return null;
-}
-
 // --- Zoom + movement watcher ---
 function ZoomWatcher({ onZoomChange }) {
   useMapEvents({
@@ -71,47 +59,22 @@ function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   return clusters;
 }
 
-// --- Center map on current location ---
-function CenterOnUser({ farts }) {
+// --- Center map on current location (working version) ---
+function CenterOnUser() {
   const map = useMap();
 
   useEffect(() => {
-    let timedOut = false;
-
-    // Ask for location *after* map finishes loading
-    map.once("load", () => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (timedOut) return;
-          const { latitude, longitude } = pos.coords;
-          map.setView([latitude, longitude], 14, { animate: true });
-        },
-        () => {
-          if (timedOut) return;
-
-          // Fallback → Fit to all markers
-          if (farts.length > 0) {
-            const bounds = L.latLngBounds(farts.map((f) => [f.lat, f.lng]));
-            map.fitBounds(bounds, { padding: [40, 40] });
-          }
-        },
-        { enableHighAccuracy: true }
-      );
-    });
-
-    // Timeout to avoid hanging forever waiting for GPS
-    const timeout = setTimeout(() => {
-      timedOut = true;
-
-      // Fallback → FitBounds instead
-      if (farts.length > 0) {
-        const bounds = L.latLngBounds(farts.map((f) => [f.lat, f.lng]));
-        map.fitBounds(bounds, { padding: [40, 40] });
-      }
-    }, 6000); // 6s fallback
-
-    return () => clearTimeout(timeout);
-  }, [map, farts]);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        map.setView([latitude, longitude], 14, { animate: true });
+      },
+      (err) => {
+        console.warn("Geolocation error:", err);
+      },
+      { enableHighAccuracy: true }
+    );
+  }, [map]);
 
   return null;
 }
@@ -122,7 +85,6 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [zoom, setZoom] = useState(2);
-  const [hasCentered, setHasCentered] = useState(false);
 
   // Admin check
   useEffect(() => {
@@ -195,8 +157,6 @@ export default function MapPage() {
     }
   }
 
-  const center = farts.length ? [farts[0].lat, farts[0].lng] : [20, 0];
-
   return (
     <div className="max-w-4xl mx-auto mt-6">
       <div className="bg-white p-3 rounded-2xl shadow-md">
@@ -212,8 +172,8 @@ export default function MapPage() {
             </div>
 
             <MapContainer
-              center={center}
-              zoom={2}
+              center={[20, 0]}
+              zoom={5}
               style={{ height: "70vh", width: "100%", zIndex: 10 }}
               scrollWheelZoom
             >
@@ -222,9 +182,8 @@ export default function MapPage() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {/* Try to center on user; fallback to FitBounds if not */}
-              {!hasCentered && <FitBounds farts={farts} />}
-              <CenterOnUser farts={farts} />
+              {/* Always center on user's location */}
+              <CenterOnUser />
 
               <ZoomWatcher
                 onZoomChange={(z, bounds) => {
