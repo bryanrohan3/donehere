@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { getIdentity } from "../utils/identity";
+import { useNavigate } from "react-router-dom";
 
 export default function StatsPage() {
   const [farts, setFarts] = useState([]);
@@ -11,6 +12,13 @@ export default function StatsPage() {
   const [myUsername, setMyUsername] = useState("");
   const [myDeviceId, setMyDeviceId] = useState("");
   const [myCount, setMyCount] = useState(0);
+
+  const navigate = useNavigate();
+
+  // ⭐ When you click a fart → open map centered on that fart
+  function goToMapForFart(f) {
+    navigate(`/map?lat=${f.lat}&lng=${f.lng}&zoom=15`);
+  }
 
   useEffect(() => {
     const { username, deviceId } = getIdentity();
@@ -74,7 +82,6 @@ export default function StatsPage() {
     return `${Math.floor(diff / 86400)}d ago`;
   }
 
-  // 🔸 Custom date formatter (e.g. "11th December 25' @ 2:45PM")
   function formatFartDate(ts) {
     const date = new Date(ts);
     const day = date.getDate();
@@ -85,7 +92,6 @@ export default function StatsPage() {
     const ampm = hours >= 12 ? "PM" : "AM";
     hours = hours % 12 || 12;
 
-    // Day suffix (st, nd, rd, th)
     const suffix =
       day % 10 === 1 && day !== 11
         ? "st"
@@ -195,10 +201,12 @@ export default function StatsPage() {
             <div className="flex flex-col gap-4">
               {filtered.slice(0, 10).map((f, i) => {
                 const isMine = f.deviceId === myDeviceId;
+
                 return (
                   <div
                     key={i}
-                    className={`rounded-xl p-4 border transition-all shadow-sm hover:shadow-md flex flex-col sm:flex-row justify-between gap-2 ${
+                    onClick={() => goToMapForFart(f)}
+                    className={`cursor-pointer rounded-xl p-4 border transition-all shadow-sm hover:shadow-lg hover:scale-[1.01] flex flex-col sm:flex-row justify-between gap-2 ${
                       isMine
                         ? "bg-gradient-to-r from-green-50 to-green-100 border-green-200"
                         : "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200"
@@ -220,6 +228,7 @@ export default function StatsPage() {
                         </div>
                       )}
                     </div>
+
                     <div className="text-xs text-neutral-500 text-right min-w-[130px]">
                       {timeAgo(f.ts)}
                       <br />

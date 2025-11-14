@@ -11,7 +11,6 @@ import "leaflet/dist/leaflet.css";
 import axios from "axios";
 import L from "leaflet";
 
-// --- Zoom + movement watcher ---
 function ZoomWatcher({ onZoomChange }) {
   useMapEvents({
     zoomend: (e) => onZoomChange(e.target.getZoom(), e.target.getBounds()),
@@ -20,7 +19,6 @@ function ZoomWatcher({ onZoomChange }) {
   return null;
 }
 
-// --- Helper: convert hex coordinates ---
 const SCALE = 1e5;
 function hexToCoord(hexLat, hexLng) {
   const latInt = parseInt(hexLat, 16);
@@ -28,7 +26,6 @@ function hexToCoord(hexLat, hexLng) {
   return { lat: latInt / SCALE, lng: lngInt / SCALE };
 }
 
-// --- Helper: cluster nearby farts ---
 function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   const clusters = [];
   const visited = new Set();
@@ -59,22 +56,15 @@ function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   return clusters;
 }
 
-// --- Center map on current location (working version) ---
-function CenterOnUser() {
+// ⭐ NEW: center map on URL-coordinates if provided
+function CenterToURL({ target }) {
   const map = useMap();
 
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        map.setView([latitude, longitude], 14, { animate: true });
-      },
-      (err) => {
-        console.warn("Geolocation error:", err);
-      },
-      { enableHighAccuracy: true }
-    );
-  }, [map]);
+    if (!target) return;
+    const { lat, lng, zoom } = target;
+    map.setView([lat, lng], zoom, { animate: true });
+  }, [target, map]);
 
   return null;
 }
@@ -86,7 +76,20 @@ export default function MapPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [zoom, setZoom] = useState(2);
 
-  // Admin check
+  const url = new URL(window.location.href);
+  const targetLat = url.searchParams.get("lat");
+  const targetLng = url.searchParams.get("lng");
+  const targetZoom = parseInt(url.searchParams.get("zoom"), 10) || 15;
+
+  const jumpTarget =
+    targetLat && targetLng
+      ? {
+          lat: parseFloat(targetLat),
+          lng: parseFloat(targetLng),
+          zoom: targetZoom,
+        }
+      : null;
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const adminKey = params.get("admin");
@@ -95,7 +98,6 @@ export default function MapPage() {
     }
   }, []);
 
-  // Load fart data
   useEffect(() => {
     let mounted = true;
     axios
@@ -133,7 +135,6 @@ export default function MapPage() {
     };
   }, []);
 
-  // Admin: clear all
   async function resetFarts() {
     if (!confirm("Are you sure you want to delete all farts? 💨")) return;
     try {
@@ -182,34 +183,46 @@ export default function MapPage() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {/* Always center on user's location */}
-              <CenterOnUser />
+              {/* NEW: Jump to clicked fart */}
+              <CenterToURL target={jumpTarget} />
 
               <ZoomWatcher
                 onZoomChange={(z, bounds) => {
                   setZoom(z);
-                  const visibleFarts = farts.filter((f) =>
+                  const visible = farts.filter((f) =>
                     bounds.contains([f.lat, f.lng])
                   );
+
                   const now = Date.now();
                   const last24h = 24 * 60 * 60 * 1000;
-                  const recentVisible = visibleFarts.filter(
+
+                  const recentVisible = visible.filter(
                     (f) => now - new Date(f.ts).getTime() <= last24h
                   );
+
                   setHotZones(findHotZones(recentVisible));
                 }}
               />
 
-              {/* 💩 Individual Farts */}
               {farts.map((f, i) => (
                 <CircleMarker
                   key={i}
                   center={[f.lat, f.lng]}
-                  radius={6}
+                  radius={
+                    jumpTarget?.lat === f.lat && jumpTarget?.lng === f.lng
+                      ? 12
+                      : 6
+                  }
                   pathOptions={{
-                    color: "#facc15",
-                    fillColor: "#facc15",
-                    fillOpacity: 0.6,
+                    color:
+                      jumpTarget?.lat === f.lat && jumpTarget?.lng === f.lng
+                        ? "#22c55e"
+                        : "#facc15",
+                    fillColor:
+                      jumpTarget?.lat === f.lat && jumpTarget?.lng === f.lng
+                        ? "#22c55e"
+                        : "#facc15",
+                    fillOpacity: jumpTarget ? 0.9 : 0.6,
                   }}
                 >
                   <Popup>
@@ -219,7 +232,7 @@ export default function MapPage() {
                         {new Date(f.ts).toLocaleString()}
                       </div>
                       <div>
-                        <strong>Accuracy (m):</strong> {f.accuracy ?? "n/a"}
+                        <strong>Accuracy:</strong> {f.accuracy ?? "n/a"}
                       </div>
                       <div>
                         <strong>Source:</strong> {f.source ?? "unknown"}
@@ -237,7 +250,6 @@ export default function MapPage() {
                 </CircleMarker>
               ))}
 
-              {/* 🔥 Active Hot Zones */}
               {hotZones.map((zone, i) => (
                 <CircleMarker
                   key={`zone-${i}`}
