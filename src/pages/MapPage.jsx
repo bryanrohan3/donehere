@@ -72,21 +72,47 @@ function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
 }
 
 // --- Center map on current location ---
-function CenterOnUser({ setHasCentered }) {
+function CenterOnUser({ farts }) {
   const map = useMap();
+
   useEffect(() => {
-    if (navigator.geolocation) {
+    let timedOut = false;
+
+    // Ask for location *after* map finishes loading
+    map.once("load", () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (timedOut) return;
           const { latitude, longitude } = pos.coords;
-          map.setView([latitude, longitude], 13); // 👈 zoom ~20 km radius
-          setHasCentered(true);
+          map.setView([latitude, longitude], 14, { animate: true });
         },
-        () => setHasCentered(false),
-        { enableHighAccuracy: true, timeout: 8000 }
+        () => {
+          if (timedOut) return;
+
+          // Fallback → Fit to all markers
+          if (farts.length > 0) {
+            const bounds = L.latLngBounds(farts.map((f) => [f.lat, f.lng]));
+            map.fitBounds(bounds, { padding: [40, 40] });
+          }
+        },
+        { enableHighAccuracy: true }
       );
-    }
-  }, [map, setHasCentered]);
+    });
+
+    // Timeout to avoid hanging forever waiting for GPS
+    const timeout = setTimeout(() => {
+      timedOut = true;
+
+      // Fallback → FitBounds instead
+      if (farts.length > 0) {
+        const bounds = L.latLngBounds(farts.map((f) => [f.lat, f.lng]));
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }, 6000); // 6s fallback
+
+    return () => clearTimeout(timeout);
+  }, [map, farts]);
+
   return null;
 }
 
@@ -198,7 +224,7 @@ export default function MapPage() {
 
               {/* Try to center on user; fallback to FitBounds if not */}
               {!hasCentered && <FitBounds farts={farts} />}
-              <CenterOnUser setHasCentered={setHasCentered} />
+              <CenterOnUser farts={farts} />
 
               <ZoomWatcher
                 onZoomChange={(z, bounds) => {
