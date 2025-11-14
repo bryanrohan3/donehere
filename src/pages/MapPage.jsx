@@ -188,7 +188,7 @@ export default function MapPage() {
             <MapContainer
               center={center}
               zoom={2}
-              style={{ height: "70vh", width: "100%" }}
+              style={{ height: "70vh", width: "100%", zIndex: 10 }}
               scrollWheelZoom
             >
               <TileLayer

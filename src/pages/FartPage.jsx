@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { getIdentity, setUsername } from "../utils/identity";
 
-const COOLDOWN_MS = 5 * 60 * 1000;
+const COOLDOWN_MS = 1.5 * 60 * 1000;
 const COORD_THRESHOLD = 0.0005;
 const MAX_WORDS = 15;
 

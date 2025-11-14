@@ -6,3 +6,16 @@ body,
   height: 100%;
   background-color: theme("colors.neutral.50"); /* ✅ works in Tailwind 4 */
 }
+
+.leaflet-container {
+  z-index: 10 !important;
+}
+
+.leaflet-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10 !important;
+}
