@@ -56,7 +56,7 @@ function findHotZones(farts, threshold = 0.01, minClusterSize = 3) {
   return clusters;
 }
 
-// ⭐ NEW: center map on URL-coordinates if provided
+// ⭐ NEW: center map on URL coordinates
 function CenterToURL({ target }) {
   const map = useMap();
 
@@ -65,6 +65,37 @@ function CenterToURL({ target }) {
     const { lat, lng, zoom } = target;
     map.setView([lat, lng], zoom, { animate: true });
   }, [target, map]);
+
+  return null;
+}
+
+// ⭐ NEW: always center on user unless jumping to fart
+function CenterOnUser({ jumpTarget }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (jumpTarget) return; // don't override jump location
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+
+        // prevent 0,0 Africa bug
+        if (latitude === 0 && longitude === 0) {
+          console.warn("Invalid GPS (0,0) — using fallback");
+          map.setView([53.3498, -6.2603], 12, { animate: true }); // Dublin fallback
+          return;
+        }
+
+        map.setView([latitude, longitude], 14, { animate: true });
+      },
+      (err) => {
+        console.warn("GPS failed:", err);
+        map.setView([53.3498, -6.2603], 12, { animate: true }); // Dublin fallback
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, [map, jumpTarget]);
 
   return null;
 }
@@ -183,8 +214,11 @@ export default function MapPage() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {/* NEW: Jump to clicked fart */}
+              {/* ⭐ Jump to selected fart */}
               <CenterToURL target={jumpTarget} />
+
+              {/* ⭐ NEW: Prevent Africa bug */}
+              <CenterOnUser jumpTarget={jumpTarget} />
 
               <ZoomWatcher
                 onZoomChange={(z, bounds) => {
