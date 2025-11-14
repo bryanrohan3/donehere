@@ -12,6 +12,10 @@ export default function ProfilePage() {
   const [level, setLevel] = useState(1);
   const [achievements, setAchievements] = useState([]);
 
+  // ⭐ STREAK SYSTEM STATE
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
+
   useEffect(() => {
     const { username, deviceId } = getIdentity();
     setMyUsername(username);
@@ -26,8 +30,11 @@ export default function ProfilePage() {
         const mine = data
           .filter((f) => f.deviceId === deviceId)
           .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+
         setFarts(mine);
+
         calculateXP(mine);
+        calculateStreaks(mine); // ⭐ NEW
       } catch (err) {
         console.error("Failed to load farts:", err);
       } finally {
@@ -44,8 +51,9 @@ export default function ProfilePage() {
     const uniqueCountries = new Set();
 
     mine.forEach((f, i) => {
-      xpTotal += 10; // per fart
-      if (i === 0) xpTotal += 50; // first fart bonus
+      xpTotal += 10;
+      if (i === 0) xpTotal += 50;
+
       const latBand = Math.floor(f.lat);
       const lngBand = Math.floor(f.lng);
       const countryKey = `${latBand}-${lngBand}`;
@@ -56,7 +64,6 @@ export default function ProfilePage() {
       }
     });
 
-    // milestones
     if (mine.length >= 10) achievementsList.push("🔥 10 Farts Club!");
     if (mine.length >= 50) achievementsList.push("💀 Legendary Farters Guild");
     if (mine.length >= 100)
@@ -66,6 +73,45 @@ export default function ProfilePage() {
     setXp(xpTotal);
     setLevel(levelNum);
     setAchievements(achievementsList);
+  }
+
+  // ⭐ NEW: STREAK CALCULATION
+  function calculateStreaks(mine) {
+    if (mine.length === 0) {
+      setCurrentStreak(0);
+      setLongestStreak(0);
+      return;
+    }
+
+    const days = mine.map((f) => new Date(f.ts).setHours(0, 0, 0, 0));
+
+    const uniqueDays = [...new Set(days)].sort((a, b) => b - a);
+
+    let streak = 1;
+    let best = 1;
+
+    for (let i = 0; i < uniqueDays.length - 1; i++) {
+      const today = uniqueDays[i];
+      const next = uniqueDays[i + 1];
+
+      const diff = (today - next) / (1000 * 60 * 60 * 24);
+
+      if (diff === 1) {
+        streak++;
+        best = Math.max(best, streak);
+      } else {
+        break; // streak broken
+      }
+    }
+
+    // Check if they farted today
+    const todayMidnight = new Date().setHours(0, 0, 0, 0);
+    if (uniqueDays[0] !== todayMidnight) {
+      streak = 0; // streak expired
+    }
+
+    setCurrentStreak(streak);
+    setLongestStreak(best);
   }
 
   function filteredFarts() {
@@ -125,6 +171,37 @@ export default function ProfilePage() {
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
+          </div>
+
+          {/* ⭐ NEW: STREAK BLOCK */}
+          <div className="bg-white border border-green-200 rounded-2xl p-5 mb-8 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-700 mb-2 flex items-center gap-1">
+              🔥 Daily Fart Streak
+            </h3>
+
+            <p className="text-neutral-700 text-sm">
+              Current streak:{" "}
+              <span className="font-bold text-green-700">{currentStreak}</span>{" "}
+              day{currentStreak !== 1 ? "s" : ""}
+            </p>
+
+            <p className="text-neutral-700 text-sm mt-1">
+              Longest streak:{" "}
+              <span className="font-bold text-green-700">{longestStreak}</span>{" "}
+              day{longestStreak !== 1 ? "s" : ""}
+            </p>
+
+            {currentStreak === 0 && (
+              <p className="text-xs text-neutral-500 mt-2 italic">
+                No fart yet today — don’t break the chain! 💨
+              </p>
+            )}
+
+            {currentStreak > 0 && (
+              <p className="text-xs text-neutral-500 mt-2 italic">
+                Keep going! Every day strengthens your legacy.
+              </p>
+            )}
           </div>
 
           {/* Achievements */}
